@@ -33,6 +33,7 @@
 #include "GitRevision.h"
 #include "IoContext.h"
 #include "MapMgr.h"
+#include "MapUpdater.h"
 #include "Metric.h"
 #include "ModuleMgr.h"
 #include "ModulesScriptLoader.h"
@@ -660,6 +661,13 @@ void FreezeDetector::Handler(std::weak_ptr<FreezeDetector> freezeDetectorRef, bo
                 uint32 msTimeDiff = getMSTimeDiff(freezeDetector->_lastChangeMsTime, curtime);
                 if (msTimeDiff > freezeDetector->_maxCoreStuckTimeInMs)
                 {
+                    std::string trace = MapWorkerTrace::Dump(curtime);
+                    if (FILE* file = fopen("freeze_trace.txt", "a"))
+                    {
+                        fprintf(file, "=== hang %u ms\n%s", msTimeDiff, trace.c_str());
+                        fclose(file);
+                    }
+                    LOG_ERROR("server.worldserver", "Freeze trace:\n{}", trace);
                     LOG_ERROR("server.worldserver", "World Thread hangs for {} ms, forcing a crash!", msTimeDiff);
                     ABORT("World Thread hangs for {} ms, forcing a crash!", msTimeDiff);
                 }

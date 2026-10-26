@@ -1449,6 +1449,7 @@ struct npc_hor_spiritual_reflection : public ScriptedAI
     {
         me->UpdatePosition(me->GetHomePosition(), true);
         ScriptedAI::EnterEvadeMode(why);
+        me->SetImmuneToPC(true);  // hidden copies stay unattackable until ACTION_SPIRITUAL_REFLECTIONS_ACTIVATE
         me->SetVisible(false);
     }
 };

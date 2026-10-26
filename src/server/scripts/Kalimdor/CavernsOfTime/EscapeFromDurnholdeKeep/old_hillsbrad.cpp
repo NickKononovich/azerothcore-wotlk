@@ -895,6 +895,26 @@ public:
 
         void UpdateEscortAI(uint32 diff) override
         {
+            // [b32_pull] Phantom combat: the knocked-out Durnholde Armorer (NullCreatureAI, immune to PC/NPC, never
+            // evades) keeps Thrall on its threat list after SPELL_KNOCKOUT_ARMORER. Creature::SelectVictim does not
+            // evade while another unit threatens us (#25328), so after any fight that broke his waypoint spline Thrall
+            // never runs ReturnToLastPoint and stands in combat with no victim forever (ohb-h 20261025-221216: 2202,132
+            // ~1300-1413 s, again 2175,144 from ~1433 s, escort_stalled threat 0, no attackers). Nobody fights him:
+            // leave combat and resume the escort.
+            if (me->IsInCombat() && !me->GetVictim() && me->GetThreatMgr().IsThreatListEmpty() &&
+                me->getAttackers().empty())
+            {
+                _phantomCombatMs += diff;
+                if (_phantomCombatMs >= 3 * IN_MILLISECONDS)
+                {
+                    _phantomCombatMs = 0;
+                    EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
+                    return;
+                }
+            }
+            else
+                _phantomCombatMs = 0;
+
             if (!UpdateVictim())
                 return;
 
@@ -980,6 +1000,7 @@ public:
         bool _mounted;
         bool _barnWave;
         bool _churchWave;
+        uint32 _phantomCombatMs = 0;  // [b32_pull] in combat with nobody on either side's list
     };
 };
 

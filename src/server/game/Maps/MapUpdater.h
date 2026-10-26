@@ -23,6 +23,7 @@
 #include <condition_variable>
 #include <thread>
 #include <atomic>
+#include <string>
 
 class Map;
 class UpdateRequest;
@@ -52,5 +53,16 @@ private:
     std::mutex _lock; // Mutex and condition variable for synchronization
     std::condition_variable _condition;
 };
+
+// Freeze diagnostics: each thread that updates maps or bots leaves a breadcrumb (map, bot, stage).
+// FreezeDetector dumps them before forcing the crash, so a hang names the map and the bot action.
+namespace MapWorkerTrace
+{
+    AC_GAME_API void BeginMap(uint32 mapId, uint32 instanceId);
+    AC_GAME_API void EndMap();
+    AC_GAME_API void SetBot(uint64 guid);
+    AC_GAME_API void SetStage(char const* prefix, char const* name);
+    AC_GAME_API std::string Dump(uint32 nowMs);
+}
 
 #endif //_MAP_UPDATER_H_INCLUDED

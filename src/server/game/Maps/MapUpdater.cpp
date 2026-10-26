@@ -22,6 +22,104 @@
 #include "Map.h"
 #include "MapMgr.h"
 #include "Metric.h"
+#include "Timer.h"
+#include <algorithm>
+#include <cstring>
+#include <initializer_list>
+
+namespace
+{
+    struct Breadcrumb
+    {
+        std::atomic<uint32> mapId{0};
+        std::atomic<uint32> instanceId{0};
+        std::atomic<uint32> startMs{0};
+        std::atomic<uint64> botGuid{0};
+        char stage[96] = {};
+    };
+
+    constexpr std::size_t MAX_TRACE_SLOTS = 64;
+    Breadcrumb s_traceSlots[MAX_TRACE_SLOTS];
+    std::atomic<std::size_t> s_traceSlotCount{0};
+    thread_local Breadcrumb* t_traceSlot = nullptr;
+
+    Breadcrumb* TraceSlot()
+    {
+        if (!t_traceSlot)
+        {
+            std::size_t index = s_traceSlotCount.fetch_add(1);
+            if (index < MAX_TRACE_SLOTS)
+                t_traceSlot = &s_traceSlots[index];
+        }
+        return t_traceSlot;
+    }
+}
+
+void MapWorkerTrace::BeginMap(uint32 mapId, uint32 instanceId)
+{
+    if (Breadcrumb* slot = TraceSlot())
+    {
+        slot->botGuid = 0;
+        slot->stage[0] = 0;
+        slot->instanceId = instanceId;
+        slot->startMs = getMSTime();
+        slot->mapId = mapId + 1; // 0 = idle
+    }
+}
+
+void MapWorkerTrace::EndMap()
+{
+    if (Breadcrumb* slot = TraceSlot())
+        slot->mapId = 0;
+}
+
+void MapWorkerTrace::SetBot(uint64 guid)
+{
+    if (Breadcrumb* slot = TraceSlot())
+    {
+        slot->botGuid = guid;
+        slot->stage[0] = 0;
+    }
+}
+
+void MapWorkerTrace::SetStage(char const* prefix, char const* name)
+{
+    if (Breadcrumb* slot = TraceSlot())
+    {
+        std::size_t used = 0;
+        for (char const* part : { prefix, name })
+        {
+            if (!part)
+                continue;
+            std::size_t len = std::min(std::strlen(part), sizeof(slot->stage) - 1 - used);
+            std::memcpy(slot->stage + used, part, len);
+            used += len;
+        }
+        slot->stage[used] = 0;
+    }
+}
+
+std::string MapWorkerTrace::Dump(uint32 nowMs)
+{
+    std::string out;
+    std::size_t count = std::min(s_traceSlotCount.load(), MAX_TRACE_SLOTS);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        Breadcrumb& slot = s_traceSlots[i];
+        char stage[sizeof(slot.stage)];
+        std::memcpy(stage, slot.stage, sizeof(stage));
+        stage[sizeof(stage) - 1] = 0;
+        uint32 map = slot.mapId.load();
+        out += "slot " + std::to_string(i) + ": ";
+        if (map)
+            out += "map " + std::to_string(map - 1) + " instance " + std::to_string(slot.instanceId.load()) +
+                   " for " + std::to_string(getMSTimeDiff(slot.startMs.load(), nowMs)) + " ms";
+        else
+            out += "idle";
+        out += " | bot guid " + std::to_string(slot.botGuid.load()) + " | stage " + stage + '\n';
+    }
+    return out;
+}
 
 class UpdateRequest
 {
@@ -43,7 +141,9 @@ public:
     void call() override
     {
         METRIC_TIMER("map_update_time_diff", METRIC_TAG("map_id", std::to_string(m_map.GetId())));
+        MapWorkerTrace::BeginMap(m_map.GetId(), m_map.GetInstanceId());
         m_map.Update(m_diff, s_diff);
+        MapWorkerTrace::EndMap();
         m_updater.update_finished();
     }
 

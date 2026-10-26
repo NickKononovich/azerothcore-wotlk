@@ -909,7 +909,8 @@ struct instance_blackrock_depths : public InstanceScript
 
     void TombOfSevenEvent()
     {
-        if (GhostKillCount < 7 && TombBossGUIDs[TombEventCounter])
+        // [brd_seven_fast] TombEventCounter reaches 7 after Doom'rel: TombBossGUIDs[7] read past the array.
+        if (GhostKillCount < 7 && TombEventCounter < 7 && TombBossGUIDs[TombEventCounter])
         {
             if (Creature* boss = instance->GetCreature(TombBossGUIDs[TombEventCounter]))
             {
@@ -918,8 +919,21 @@ struct instance_blackrock_depths : public InstanceScript
                 boss->SetImmuneToPC(false);
 
                 // find suitable target here.
-                Player* target = boss->SelectNearestPlayer(130);
-                if (target && boss->CanCreatureAttack(target, true))
+                // [brd_seven_fast] the nearest player the dwarf CAN attack: SelectNearestPlayer counts GMs (and dead
+                // or feigning players fail CanCreatureAttack), so a GM watcher nearest left the dwarf idle, hostile,
+                // and the event reset 15 s later (CheckTombReset).
+                Player* target = nullptr;
+                float targetDist = 130.0f;
+                for (Map::PlayerList::const_iterator itr = instance->GetPlayers().begin();
+                     itr != instance->GetPlayers().end(); ++itr)
+                    if (Player* player = itr->GetSource())
+                        if (player->IsAlive() && boss->IsWithinDistInMap(player, targetDist) &&
+                            boss->CanCreatureAttack(player, true))
+                        {
+                            target = player;
+                            targetDist = boss->GetDistance(player);
+                        }
+                if (target)
                 {
                     boss->AI()->AttackStart(target);
                     boss->AI()->DoZoneInCombat();

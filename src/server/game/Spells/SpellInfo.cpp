@@ -461,7 +461,8 @@ int32 SpellEffectInfo::CalcValue(WorldObject const* caster, int32 const* bp, Uni
         value = casterUnit->ApplyEffectModifiers(_spellInfo, EffectIndex, value);
 
         // amount multiplication based on caster's level
-        if (!casterUnit->IsControlledByPlayer() &&
+        // A charmed player (Incite Chaos, Mind Control) is not controlled by a player but is no creature either.
+        if (!casterUnit->IsControlledByPlayer() && casterUnit->IsCreature() &&
                 _spellInfo->SpellLevel && _spellInfo->SpellLevel != casterUnit->GetLevel() &&
                 !basePointsPerLevel && _spellInfo->HasAttribute(SPELL_ATTR0_SCALES_WITH_CREATURE_LEVEL))
         {

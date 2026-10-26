@@ -45,6 +45,14 @@ class WorldObject;
 
 #define SMOOTH_PATH_STEP_SIZE   4.0f
 #define SMOOTH_PATH_SLOP        0.3f
+// FindSmoothPath: iterPos moving less than this (2D, yards) counts as a stalled iteration...
+#define SMOOTH_PATH_STALL_DIST  0.01f
+// ...and this many stalled iterations in a row mean the corridor cannot be followed from iterPos.
+#define SMOOTH_PATH_STALL_COUNT 3
+// FindSmoothPath: iterPos landing back within this (2D, yards) of where it was two iterations earlier is a bounce...
+#define SMOOTH_PATH_BOUNCE_DIST  0.1f
+// ...and a buffer filled up during this many bounces in a row (two A-B-A periods) is cut back to the bounce start.
+#define SMOOTH_PATH_BOUNCE_COUNT 4
 #define DISALLOW_TIME_AFTER_FAIL    3 // secs
 #define VERTEX_SIZE       3
 #define INVALID_POLYREF   0
@@ -99,6 +107,11 @@ class PathGenerator
         // a single NavTerrain or an OR'd combination (NavTerrain values
         // implicitly convert through uint16).
         void SetExcludeFlags(uint16 flags) { _filter.setExcludeFlags(flags); }
+        // Replace the active filter's include bitmask (headless bots leave out NAV_GROUND_STEEP, which a
+        // real player walks; a caller may put it back).
+        void SetIncludeFlags(uint16 flags) { _filter.setIncludeFlags(flags); }
+        [[nodiscard]] uint16 GetIncludeFlags() const { return _filter.getIncludeFlags(); }
+        [[nodiscard]] uint16 GetExcludeFlags() const { return _filter.getExcludeFlags(); }
 
         // result getters
         [[nodiscard]] G3D::Vector3 const& GetStartPosition() const { return _startPosition; }
@@ -193,6 +206,7 @@ class PathGenerator
         uint32 FixupCorridor(dtPolyRef* path, uint32 npath, uint32 maxPath, dtPolyRef const* visited, uint32 nvisited);
         bool GetSteerTarget(float const* startPos, float const* endPos, float minTargetDist, dtPolyRef const* path, uint32 pathSize, float* steerPos,
                             unsigned char& steerPosFlag, dtPolyRef& steerPosRef);
+        bool StepOverStalledPortal(dtPolyRef* polys, uint32& npolys, float* iterPos) const;
         dtStatus FindSmoothPath(float const* startPos, float const* endPos,
                               dtPolyRef const* polyPath, uint32 polyPathSize,
                               float* smoothPath, int* smoothPathSize, uint32 smoothPathMaxSize);

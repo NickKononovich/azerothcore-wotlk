@@ -700,6 +700,10 @@ void PathGenerator::BuildPointPath(float const* startPoint, float const* endPoin
     // first point is always our current location - we need the next one
     SetActualEndPosition(_pathPoints[pointCount - 1]);
 
+    // FindSmoothPath stalled on the corridor and returned only its walkable head
+    if (!_useStraightPath && (dtResult & DT_PARTIAL_RESULT))
+        _type = PathType((_type & ~PATHFIND_NORMAL) | PATHFIND_INCOMPLETE);
+
     // force the given destination, if needed
     if (_forceDestination &&
         (!(_type & PATHFIND_NORMAL) || !InRange(GetEndPosition(), GetActualEndPosition(), 1.0f, 1.0f)))
@@ -766,15 +770,15 @@ void PathGenerator::CreateFilter()
     }
     else // assume Player
     {
-        // Bots navigate with a stricter filter: include ground + water but exclude lava/slime and
-        // NAV_GROUND_STEEP (the 50-60deg slopes the extractor tags via modAlmostUnwalkableTriangles), so
-        // they keep off steep mountainsides and follow gentle ground/roads. Real players are unchanged and
-        // may still path across steep terrain.
+        // Bots navigate with a stricter filter: include ground + water but exclude lava/slime. The 50-60deg
+        // slopes the extractor tags NAV_GROUND_STEEP (modAlmostUnwalkableTriangles) are walkable for a real
+        // player, and in places they are the only link (Utgarde Pinnacle, Azjol-Nerub, Steamvault ledges), so
+        // bots may use them but pay a high area cost: they keep to gentle ground/roads whenever it exists.
         Player const* player = _source->ToPlayer();
         if (player && player->GetSession() && player->GetSession()->IsHeadless())
         {
-            includeFlags |= (NAV_GROUND | NAV_WATER);
-            excludeFlags |= (NAV_MAGMA | NAV_SLIME | NAV_GROUND_STEEP);
+            includeFlags |= (NAV_GROUND | NAV_WATER | NAV_GROUND_STEEP);
+            excludeFlags |= (NAV_MAGMA | NAV_SLIME);
             isHeadless = true;
         }
         else
@@ -790,7 +794,10 @@ void PathGenerator::CreateFilter()
     // Bots bias their routes away from deep water (swim only when necessary). poly.area == poly.flags ==
     // NavTerrain, so NAV_WATER doubles as the water area index. Real players and creatures assign no cost.
     if (isHeadless)
+    {
         _filter.setAreaCost(NAV_WATER, 20.0f);
+        _filter.setAreaCost(NAV_GROUND_STEEP, 20.0f);
+    }
 
     UpdateFilter();
 }
@@ -971,6 +978,11 @@ dtStatus PathGenerator::FindSmoothPath(float const* startPos, float const* endPo
     dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
     nsmoothPath++;
 
+    uint32 stallCount = 0;
+    uint32 bounceCount = 0;
+    uint32 bounceStart = 0;
+    bool stalled = false;
+
     // Move towards target a small advancement at a time until target reached or
     // when ran out of memory to store the path.
     while (npolys && nsmoothPath < maxSmoothPathSize)
@@ -1015,6 +1027,14 @@ dtStatus PathGenerator::FindSmoothPath(float const* startPos, float const* endPo
             LOG_DEBUG("maps", "PathGenerator::FindSmoothPath: Cannot find height at position X: {} Y: {} Z: {} for {}",
                 result[2], result[0], result[1], _source->GetGUID().ToString());
         result[1] += 0.5f;
+
+        // A steer target past an edge moveAlongSurface cannot cross (e.g. iterPos wedged in a 1-voxel notch at the
+        // foot of a staircase) leaves iterPos in place forever and the loop only fills the buffer with copies of it
+        if (dtVdist2DSqr(result, iterPos) < SMOOTH_PATH_STALL_DIST * SMOOTH_PATH_STALL_DIST)
+            ++stallCount;
+        else
+            stallCount = 0;
+
         dtVcopy(iterPos, result);
 
         bool canCheckSlope = _slopeCheck && (GetPathType() & ~(PATHFIND_NOT_USING_PATH));
@@ -1071,7 +1091,35 @@ dtStatus PathGenerator::FindSmoothPath(float const* startPos, float const* endPo
                     return DT_FAILURE;
                 iterPos[1] += 0.5f;
             }
+
+            stallCount = 0;
         }
+
+        if (stallCount >= SMOOTH_PATH_STALL_COUNT)
+        {
+            // drop the copies of iterPos stored by the earlier stalled iterations
+            nsmoothPath -= SMOOTH_PATH_STALL_COUNT - 1;
+            stallCount = 0;
+
+            if (!StepOverStalledPortal(polys, npolys, iterPos))
+            {
+                stalled = true;
+                break;
+            }
+        }
+
+        // On stacked geometry (e.g. a spiral ramp) moveAlongSurface can throw iterPos back and forth between two
+        // spots for good (the corridor fixup flips with it), so the loop only fills the buffer with them
+        if (nsmoothPath >= 2 &&
+            InRangeYZX(iterPos, &smoothPath[(nsmoothPath - 2) * VERTEX_SIZE], SMOOTH_PATH_BOUNCE_DIST, 1000.0f) &&
+            !InRangeYZX(iterPos, &smoothPath[(nsmoothPath - 1) * VERTEX_SIZE], SMOOTH_PATH_BOUNCE_DIST, 1000.0f))
+        {
+            if (!bounceCount)
+                bounceStart = nsmoothPath;
+            ++bounceCount;
+        }
+        else
+            bounceCount = 0;
 
         // Store results.
         if (nsmoothPath < maxSmoothPathSize)
@@ -1079,12 +1127,96 @@ dtStatus PathGenerator::FindSmoothPath(float const* startPos, float const* endPo
             dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
             nsmoothPath++;
         }
+
+        // ran out of buffer while bouncing: drop the repeats, the path then ends with the first visit of both
+        // bounce spots, of which only the one nearer the target is kept
+        if (nsmoothPath >= maxSmoothPathSize && bounceCount >= SMOOTH_PATH_BOUNCE_COUNT)
+        {
+            nsmoothPath = bounceStart;
+            if (dtVdist2DSqr(&smoothPath[(nsmoothPath - 2) * VERTEX_SIZE], targetPos) <
+                dtVdist2DSqr(&smoothPath[(nsmoothPath - 1) * VERTEX_SIZE], targetPos))
+                --nsmoothPath;
+
+            stalled = true;
+            break;
+        }
     }
 
     *smoothPathSize = nsmoothPath;
 
+    // corridor could not be followed any further: hand back the walkable part built so far
+    if (stalled)
+        return nsmoothPath > 1 ? (DT_SUCCESS | DT_PARTIAL_RESULT) : DT_FAILURE;
+
     // this is most likely a loop
     return nsmoothPath < MAX_POINT_PATH_LENGTH ? DT_SUCCESS : DT_FAILURE;
+}
+
+// Moves iterPos from polys[0] onto its portal edge with polys[1] and drops polys[0] from the corridor. The segment
+// stays inside the convex polys[0], so it is walkable. Portal lookup mirrors the private
+// dtNavMeshQuery::getPortalPoints (Recast/Detour, zlib licence).
+bool PathGenerator::StepOverStalledPortal(dtPolyRef* polys, uint32& npolys, float* iterPos) const
+{
+    if (npolys < 2)
+        return false;
+
+    dtMeshTile const* fromTile = nullptr;
+    dtPoly const* fromPoly = nullptr;
+    dtMeshTile const* toTile = nullptr;
+    dtPoly const* toPoly = nullptr;
+    if (dtStatusFailed(_navMesh->getTileAndPolyByRef(polys[0], &fromTile, &fromPoly)) ||
+        dtStatusFailed(_navMesh->getTileAndPolyByRef(polys[1], &toTile, &toPoly)))
+        return false;
+
+    // off-mesh links are traversed by FindSmoothPath itself
+    if (fromPoly->getType() == DT_POLYTYPE_OFFMESH_CONNECTION || toPoly->getType() == DT_POLYTYPE_OFFMESH_CONNECTION)
+        return false;
+
+    dtLink const* link = nullptr;
+    for (uint32 i = fromPoly->firstLink; i != DT_NULL_LINK; i = fromTile->links[i].next)
+    {
+        if (fromTile->links[i].ref == polys[1])
+        {
+            link = &fromTile->links[i];
+            break;
+        }
+    }
+
+    if (!link)
+        return false;
+
+    float const* v0 = &fromTile->verts[fromPoly->verts[link->edge] * VERTEX_SIZE];
+    float const* v1 = &fromTile->verts[fromPoly->verts[(link->edge + 1) % fromPoly->vertCount] * VERTEX_SIZE];
+    float left[VERTEX_SIZE], right[VERTEX_SIZE];
+    dtVcopy(left, v0);
+    dtVcopy(right, v1);
+
+    // a link on a tile border covers only part of the edge
+    if (link->side != 0xff && (link->bmin != 0 || link->bmax != 255))
+    {
+        dtVlerp(left, v0, v1, link->bmin / 255.0f);
+        dtVlerp(right, v0, v1, link->bmax / 255.0f);
+    }
+
+    // closest point on the portal, kept off its end vertices: a stall usually sits on one of them
+    float t = 0.0f;
+    dtDistancePtSegSqr2D(iterPos, left, right, t);
+    t = std::clamp(t, 0.1f, 0.9f);
+
+    float portalPos[VERTEX_SIZE];
+    dtVlerp(portalPos, left, right, t);
+
+    for (uint32 i = 1; i < npolys; ++i)
+        polys[i - 1] = polys[i];
+    --npolys;
+
+    float height;
+    if (dtStatusSucceed(_navMeshQuery->getPolyHeight(polys[0], portalPos, &height)))
+        portalPos[1] = height;
+    portalPos[1] += 0.5f;
+
+    dtVcopy(iterPos, portalPos);
+    return true;
 }
 
 bool PathGenerator::IsWalkableClimb(float const* v1, float const* v2) const

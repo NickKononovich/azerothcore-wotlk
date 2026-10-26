@@ -454,6 +454,9 @@ public:
                     if (Creature* reflection = instance->GetCreature(_spiritualReflectionGUID[i]))
                         if (reflection->IsVisible())
                         {
+                            // creature_template 37068/37721 carry UNIT_FLAG_IMMUNE_TO_PC: without this the copies join
+                            // the zone combat but can neither hit nor be hit (blizzlike: they fight and are killed).
+                            reflection->SetImmuneToPC(false);
                             reflection->SetInCombatWithZone();
                             reflection->SetCanFly(false);
                             reflection->SetDisableGravity(false);
