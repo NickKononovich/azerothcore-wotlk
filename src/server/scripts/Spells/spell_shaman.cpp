@@ -1436,20 +1436,15 @@ class spell_sha_lightning_overload : public AuraScript
         if (!procSpell || !target)
             return;
 
-        uint32 spell = (procSpell->SpellFamilyFlags[0] & 0x2) ? SPELL_SHAMAN_LIGHTNING_OVERLOAD_CL : SPELL_SHAMAN_LIGHTNING_OVERLOAD_LB;
+        uint32 firstRank = (procSpell->SpellFamilyFlags[0] & 0x2) ? SPELL_SHAMAN_LIGHTNING_OVERLOAD_CL : SPELL_SHAMAN_LIGHTNING_OVERLOAD_LB;
 
-        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
-        if (!damageInfo)
+        // The overload rank matching the bolt carries half its base damage and half its spell power coefficient
+        // and rolls its own hit, crit and damage modifiers, so they are not applied twice
+        uint32 spell = sSpellMgr->GetSpellWithRank(firstRank, procSpell->GetRank(), false);
+        if (!spell)
             return;
 
-        int32 damage = damageInfo->GetDamage();
-        // Half damage for critical hits
-        if (eventInfo.GetHitMask() & PROC_EX_CRITICAL_HIT)
-            damage /= 2;
-        // Half damage overall
-        damage /= 2;
-
-        GetTarget()->CastCustomSpell(spell, SPELLVALUE_BASE_POINT0, damage, target, true, nullptr, aurEff);
+        GetTarget()->CastSpell(target, spell, true, nullptr, aurEff);
     }
 
     void Register() override
