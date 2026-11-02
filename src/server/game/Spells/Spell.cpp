@@ -5838,6 +5838,10 @@ void Spell::HandleThreatSpells()
                 continue;
             if (IsFromPreDeathAura() && !target->IsEngagedBy(unitCaster))
                 continue;
+            // wowsims core/spell_result.go:64: the flat bonus is scaled by the caster's threat modifiers
+            // (forms, stances, Righteous Fury), but not by the spell's own pctMod / spellmods
+            threatToAdd *= unitCaster->GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_THREAT,
+                m_spellInfo->GetSchoolMask());
             target->GetThreatMgr().AddThreat(unitCaster, threatToAdd, m_spellInfo, true);
         }
     }
