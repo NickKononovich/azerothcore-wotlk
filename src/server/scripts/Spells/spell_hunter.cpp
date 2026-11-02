@@ -89,6 +89,12 @@ enum HunterSpellIcons
     HUNTER_ICON_RAPID_RECUPERATION                  = 3560
 };
 
+enum HunterLockAndLoad
+{
+    // wowsims sim/hunter/talents.go:544 - rank 3 procs on 20 % of Black Arrow / fire trap ticks (DBC: 6 %)
+    LOCK_AND_LOAD_RANK_3_PERIODIC_CHANCE            = 20
+};
+
 class spell_hun_check_pet_los : public SpellScript
 {
     PrepareSpellScript(spell_hun_check_pet_los);
@@ -221,11 +227,12 @@ class spell_hun_generic_scaling : public AuraScript
 
             float ownerAP = owner->GetTotalAttackPowerValue(RANGED_ATTACK);
 
-            // Xinef: Hunter vs. Wild
-            if (AuraEffect* HvWEff = owner->GetAuraEffect(SPELL_AURA_MOD_ATTACK_POWER_OF_STAT_PERCENT, SPELLFAMILY_HUNTER, 3647, EFFECT_0))
-                ownerAP += CalculatePct(owner->GetStat(STAT_STAMINA), HvWEff->GetAmount());
-
             amount = CalculatePct(std::max<int32>(0, ownerAP), modifier);
+
+            // Hunter vs. Wild: the pet gains the full HvW % of the owner's stamina, not 22 % of it
+            // (wowsims sim/hunter/pet.go makeStatInheritance: RAP * 0.22 + Stamina * 0.1 * HvW)
+            if (AuraEffect* HvWEff = owner->GetAuraEffect(SPELL_AURA_MOD_ATTACK_POWER_OF_STAT_PERCENT, SPELLFAMILY_HUNTER, 3647, EFFECT_0))
+                amount += int32(CalculatePct(owner->GetStat(STAT_STAMINA), HvWEff->GetAmount()));
             if (owner->HasAura(SPELL_HUNTER_PET_LEGGINGS_OF_BEAST_MASTERY))
             {
                 amount += 70;
@@ -1258,7 +1265,11 @@ class spell_hun_lock_and_load : public AuraScript
         if (!(eventInfo.GetTypeMask() & PROC_FLAG_DONE_PERIODIC))
             return false;
 
-        return roll_chance_i(aurEff->GetAmount());
+        int32 chance = aurEff->GetAmount();
+        if (GetSpellInfo()->GetRank() == 3)
+            chance = LOCK_AND_LOAD_RANK_3_PERIODIC_CHANCE;
+
+        return roll_chance_i(chance);
     }
 
     void HandleProc(ProcEventInfo& eventInfo)
