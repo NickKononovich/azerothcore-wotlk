@@ -10018,6 +10018,27 @@ bool Player::IsAffectedBySpellmod(SpellInfo const* spellInfo, SpellModifier* mod
     return spellInfo->IsAffectedBySpellMod(mod);
 }
 
+// Percent damage / periodic damage modifiers (SPELLMOD_DAMAGE, SPELLMOD_DOT) are summed into one factor, as Rawr sums
+// the talent, glyph and set percent bonuses of an ability (Rawr.Rogue CalculationsRogue.cs:626, Rawr.Retribution
+// Skill.cs:266, Rawr.Mage Solver.cs:2334 + SpellInfo/Spell.cs:441, Rawr.Warlock StatUtils.cs:174-185, Rawr.Moonkin
+// MoonkinSolver.cs:785-794, Rawr.ShadowPriest Spell.cs:217, Rawr.Elemental LavaBurst.cs:36). The modifiers Rawr keeps
+// out of that sum multiply on their own.
+static bool IsMultiplicativeDamageSpellMod(uint32 modSpellId)
+{
+    switch (modSpellId)
+    {
+        case 44566: case 44567: case 44568: case 44570: case 44571: // Chilled to the Bone (Rawr.Mage SpellData.cs:737)
+        case 11190: case 12489: case 12490:                         // Improved Cone of Cold (Rawr.Mage SpellData.cs:1207)
+        case 56370:                                                 // Glyph of Frostbolt (Rawr.Mage SpellData.cs:728-731)
+        case 47383: case 71162: case 71165:                         // Molten Core buff (Rawr.Warlock Spells.cs:1506)
+        case 51483: case 51485: case 51486:                         // Storm, Earth and Fire (Rawr.Elemental FlameShock.cs)
+        case 64925:                                                 // Shaman T8 Elemental 2P (Rawr.Elemental FlameShock.cs)
+            return true;
+        default:
+            return false;
+    }
+}
+
 template <class T>
 void Player::ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue, Spell* spell, bool temporaryPet)
 {
@@ -10027,6 +10048,7 @@ void Player::ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue, Spell* s
 
     float totalmul = 1.0f;
     int32 totalflat = 0;
+    int32 additiveDamagePct = 0;
 
     auto calculateSpellMod = [&](SpellModifier* mod)
     {
@@ -10072,9 +10094,10 @@ void Player::ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue, Spell* s
             else if (mod->op == SPELLMOD_GLOBAL_COOLDOWN && !HasSpellModApplied(mod, spell))
                 return;
 
-            // xinef: those two mods should be multiplicative (Glyph of Renew)
-            if (mod->op == SPELLMOD_DAMAGE || mod->op == SPELLMOD_DOT)
+            if ((mod->op == SPELLMOD_DAMAGE || mod->op == SPELLMOD_DOT) && IsMultiplicativeDamageSpellMod(mod->spellId))
                 totalmul *= CalculatePct(1.0f, 100.0f + mod->value);
+            else if (mod->op == SPELLMOD_DAMAGE || mod->op == SPELLMOD_DOT)
+                additiveDamagePct += mod->value;
             else
                 totalmul += CalculatePct(1.0f, mod->value);
         }
@@ -10093,6 +10116,9 @@ void Player::ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue, Spell* s
 
         calculateSpellMod(mod);
     }
+
+    if (additiveDamagePct)
+        totalmul *= std::max(0.0f, CalculatePct(1.0f, 100.0f + additiveDamagePct));
 
     if (op == SPELLMOD_CASTING_TIME || op == SPELLMOD_DURATION || op == SPELLMOD_COST)
         basevalue = (basevalue + totalflat) > 0 ? (basevalue + totalflat) * totalmul : 0;
