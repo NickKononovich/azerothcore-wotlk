@@ -1314,27 +1314,41 @@ class spell_warl_curse_of_agony : public AuraScript
     void ApplyEffect(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
     {
         _tick_amount = aurEff->GetAmount();
+
+        // Only the base damage ramps up, the spell power part stays the same on every tick
+        _base_amount = _tick_amount;
+        if (Unit* caster = GetCaster())
+        {
+            float base = float(GetSpellInfo()->Effects[EFFECT_0].CalcValue(caster));
+            float coeff = GetSpellInfo()->Effects[EFFECT_0].BonusMultiplier;
+            if (SpellBonusEntry const* bonus = sSpellMgr->GetSpellBonusData(GetId()))
+                coeff = bonus->dot_damage;
+
+            float spellPower = caster->SpellBaseDamageBonusDone(GetSpellInfo()->GetSchoolMask()) * coeff;
+            if (base > 0.0f && spellPower > 0.0f)
+                _base_amount = int32(_tick_amount * base / (base + spellPower));
+        }
     }
 
     void HandleEffectPeriodicUpdate(AuraEffect* aurEff)
     {
         switch (aurEff->GetTickNumber())
         {
-            // 1..4 ticks, 1/2 from normal tick damage
+            // 1..4 ticks, 1/2 of the base tick damage
             case 1:
-                aurEff->SetAmount(_tick_amount / 2);
+                aurEff->SetAmount(_tick_amount - _base_amount / 2);
                 break;
             // 5..8 ticks have normal tick damage
             case 5:
                 aurEff->SetAmount(_tick_amount);
                 break;
-            // 9..12 ticks, 3/2 from normal tick damage
+            // 9..12 ticks, 3/2 of the base tick damage
             case 9:
-                aurEff->SetAmount((_tick_amount + 1) * 3 / 2); // +1 prevent 0.5 damage possible lost at 1..4 ticks
+                aurEff->SetAmount(_tick_amount + _base_amount / 2);
                 break;
-            // 13 and 14 ticks (glyphed only), twice normal tick damage
+            // 13 and 14 ticks (glyphed only), twice the base tick damage
             case 13:
-                aurEff->SetAmount(_tick_amount * 2);
+                aurEff->SetAmount(_tick_amount + _base_amount);
                 break;
         }
     }
@@ -1345,7 +1359,8 @@ class spell_warl_curse_of_agony : public AuraScript
         OnEffectUpdatePeriodic += AuraEffectUpdatePeriodicFn(spell_warl_curse_of_agony::HandleEffectPeriodicUpdate, EFFECT_0, SPELL_AURA_PERIODIC_DAMAGE);
     }
 private:
-    uint32 _tick_amount = 0;
+    int32 _tick_amount = 0;
+    int32 _base_amount = 0;
 };
 
 // 56218 - Glyph of Corruption
