@@ -2154,9 +2154,25 @@ class spell_sha_windfury_weapon : public AuraScript
         bool mainHand = slot == EQUIPMENT_SLOT_MAINHAND;
         uint32 spellId = mainHand ? SPELL_SHAMAN_WINDFURY_ATTACK_MH : SPELL_SHAMAN_WINDFURY_ATTACK_OH;
 
-        SpellInfo const* windfurySpellInfo = sSpellMgr->GetSpellInfo(SPELL_SHAMAN_WINDFURY_WEAPON_R1);
-        int32 bonus = windfurySpellInfo ? windfurySpellInfo->Effects[EFFECT_1].CalcValue(player) : 0;
-        bonus = int32(bonus * player->GetAttackTime(mainHand ? BASE_ATTACK : OFF_ATTACK) / 1000.f);
+        // The extra attack power comes from the rank that put this enchant on the weapon
+        // (rank 8: 1250 AP), not from rank 1 (46 AP)
+        int32 enchantId = int32(item->GetEnchantmentId(TEMP_ENCHANTMENT_SLOT));
+        int32 extraAttackPower = 0;
+        SpellInfo const* rankInfo = sSpellMgr->GetSpellInfo(SPELL_SHAMAN_WINDFURY_WEAPON_R1);
+        for (; rankInfo; rankInfo = rankInfo->GetNextRankSpell())
+        {
+            if (rankInfo->Effects[EFFECT_0].MiscValue == enchantId)
+            {
+                extraAttackPower = rankInfo->Effects[EFFECT_1].CalcValue(player);
+                break;
+            }
+        }
+
+        if (!extraAttackPower)
+            return;
+
+        // Attack power adds AP / 14 damage per second of weapon speed
+        int32 bonus = int32(extraAttackPower / 14.0f * player->GetAttackTime(mainHand ? BASE_ATTACK : OFF_ATTACK) / 1000.f);
 
         player->CastCustomSpell(spellId, SPELLVALUE_BASE_POINT0, bonus, target, true, item, aurEff);
         player->CastCustomSpell(spellId, SPELLVALUE_BASE_POINT0, bonus, target, true, item, aurEff);
