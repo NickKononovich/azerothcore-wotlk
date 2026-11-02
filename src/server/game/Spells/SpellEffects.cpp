@@ -360,12 +360,18 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                     // Shield Slam
                     if (m_spellInfo->SpellFamilyFlags[1] & 0x200 && m_spellInfo->GetCategory() == 1209)
                     {
-                        uint8 level = unitCaster->GetLevel();
-                        // xinef: shield block should increase the limit
-                        float limit = unitCaster->HasAura(2565) ? 2.0f : 1.0f;
-                        uint32 block_value = unitCaster->GetShieldBlockValue(uint32(float(level) * 24.5f * limit), uint32(float(level) * 34.5f * limit));
+                        // Rawr.ProtWarr AbilityModel.cs:87-95: block value counts fully up to 24.5 x level, above that
+                        // 0.98 x - 0.00073885 x^2 of the excess x, which stops growing at 39.5 x level
+                        float const level = float(unitCaster->GetLevel());
+                        float const softCap = 24.5f * level;
+                        float blockValue = float(unitCaster->GetShieldBlockValue());
+                        if (blockValue > softCap)
+                        {
+                            float const excess = std::min(blockValue, 39.5f * level) - softCap;
+                            blockValue = softCap + 0.98f * excess - 0.00073885f * excess * excess;
+                        }
 
-                        damage += int32(unitCaster->ApplyEffectModifiers(m_spellInfo, effIndex, float(block_value)));
+                        damage += int32(unitCaster->ApplyEffectModifiers(m_spellInfo, effIndex, blockValue));
                     }
                     // Victory Rush
                     else if (m_spellInfo->SpellFamilyFlags[1] & 0x100)
@@ -674,11 +680,19 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                     // Shield of Righteousness
                     if (m_spellInfo->SpellFamilyFlags[EFFECT_1] & 0x100000)
                     {
-                        uint8 level = unitCaster->GetLevel();
-                        uint32 block_value = unitCaster->GetShieldBlockValue(uint32(float(level) * 29.5f), uint32(float(level) * 34.5f));
+                        // Rawr.ProtPaladin AbilityModel.cs:52-66: block value (with the T8 4P +225) counts fully up to
+                        // 30 x level, above that 0.95 x - 0.000625 x^2 of the excess x, which stops growing at 39.5 x level
+                        float const level = float(unitCaster->GetLevel());
+                        float const softCap = 30.0f * level;
+                        float blockValue = float(unitCaster->GetShieldBlockValue());
                         if (unitCaster->GetAuraEffect(64882, EFFECT_0))
-                            block_value += 225;
-                        damage += CalculatePct(block_value, m_spellInfo->Effects[EFFECT_1].CalcValue());
+                            blockValue += 225.0f;
+                        if (blockValue > softCap)
+                        {
+                            float const excess = std::min(blockValue, 39.5f * level) - softCap;
+                            blockValue = softCap + 0.95f * excess - 0.000625f * excess * excess;
+                        }
+                        damage += int32(CalculatePct(blockValue, m_spellInfo->Effects[EFFECT_1].CalcValue()));
                         break;
                     }
                     break;
