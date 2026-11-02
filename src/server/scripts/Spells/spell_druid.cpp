@@ -398,15 +398,12 @@ class spell_dru_treant_scaling : public AuraScript
 
     void CalculateAPAmount(AuraEffect const*  /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
     {
-        // xinef: treant inherits 105% of SP as AP - 15% of damage increase per hit
+        // wowsims force_of_nature.go:96-99: treant gains 50% of the owner's SP as strength (2 AP each),
+        // i.e. 100% of SP as AP; Brambles is a damage multiplier (Guardian::InitStatsForLevel), not AP
         if (Unit* owner = GetUnitOwner()->GetOwner())
         {
             int32 nature = owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_NATURE);
-            amount = CalculatePct(std::max<int32>(0, nature), 105);
-
-            // xinef: brambles talent
-            if (AuraEffect const* bramblesEff = owner->GetAuraEffect(SPELL_AURA_ADD_FLAT_MODIFIER, SPELLFAMILY_DRUID, 53, 2))
-                AddPct(amount, bramblesEff->GetAmount());
+            amount = std::max<int32>(0, nature);
         }
     }
 

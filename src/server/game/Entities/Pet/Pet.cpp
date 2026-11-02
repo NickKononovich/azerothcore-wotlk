@@ -1311,8 +1311,16 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
                             if (!pInfo)
                                 SetCreateHealth(30 + 30 * petlevel);
 
-                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 2.5f - petlevel));
-                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 2.5f + petlevel));
+                            // wowsims force_of_nature.go: 252-357 weapon, 331 str / 113 agi base,
+                            // Brambles +5% damage dealt per point
+                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, 252.0f);
+                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, 357.0f);
+                            SetCreateStat(STAT_STRENGTH, 331.0f);
+                            SetCreateStat(STAT_AGILITY, 113.0f);
+                            if (AuraEffect const* brambles =
+                                    owner->GetAuraEffect(SPELL_AURA_ADD_FLAT_MODIFIER, SPELLFAMILY_DRUID, 53, 2))
+                                SetStatPctModifier(UNIT_MOD_DAMAGE_MAINHAND, BASE_PCT,
+                                    1.0f + brambles->GetAmount() / 100.0f);
 
                             AddAura(SPELL_PET_AVOIDANCE, this);
                             AddAura(SPELL_HUNTER_PET_SCALING_04, this);
