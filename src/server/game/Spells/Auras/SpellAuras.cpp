@@ -1525,8 +1525,8 @@ void Aura::HandleAuraSpecificMods(AuraApplication const* aurApp, Unit* caster, b
                     // Improved Devouring Plague
                     if (AuraEffect const* aurEff = caster->GetDummyAuraEffect(SPELLFAMILY_PRIEST, 3790, 1))
                     {
+                        // taken modifiers apply when 63675 hits, not here as well
                         uint32 damage = GetEffect(0)->GetAmount();
-                        damage = target->SpellDamageBonusTaken(caster, GetSpellInfo(), damage, DOT);
                         int32 basepoints0 = aurEff->GetAmount() * GetEffect(0)->GetTotalTicks() * int32(damage) / 100;
                         int32 heal = int32(CalculatePct(basepoints0, 15));
 
