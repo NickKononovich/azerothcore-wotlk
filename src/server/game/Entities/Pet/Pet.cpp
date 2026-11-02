@@ -1311,10 +1311,11 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
                             if (!pInfo)
                                 SetCreateHealth(30 + 30 * petlevel);
 
-                            // wowsims force_of_nature.go: 252-357 weapon, 331 str / 113 agi base,
+                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 2.5f - petlevel));
+                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 2.5f + petlevel));
+
+                            // Rawr 2.3.23 MoonkinSolver.cs:632-645 (3.3.5a): 642 base AP (331 str),
                             // Brambles +5% damage dealt per point
-                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, 252.0f);
-                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, 357.0f);
                             SetCreateStat(STAT_STRENGTH, 331.0f);
                             SetCreateStat(STAT_AGILITY, 113.0f);
                             if (AuraEffect const* brambles =
