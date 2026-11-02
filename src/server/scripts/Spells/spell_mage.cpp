@@ -706,6 +706,20 @@ class spell_mage_ice_barrier : public SpellScript
     }
 };
 
+// Living Bomb explosion (44461, 55361, 55362) is cast triggered from the expiring
+// Living Bomb aura. The proc system drops triggered spells unless the proc entry
+// carries PROC_ATTR_TRIGGERED_CAN_PROC, so Hot Streak and Ignite set that attribute
+// and use this to keep every other triggered spell out.
+static bool IsMageTriggeredProcBlocked(ProcEventInfo& eventInfo)
+{
+    Spell const* procSpell = eventInfo.GetProcSpell();
+    if (!procSpell || !procSpell->IsTriggered())
+        return false;
+
+    SpellInfo const* spellInfo = procSpell->GetSpellInfo();
+    return !(spellInfo->SpellFamilyName == SPELLFAMILY_MAGE && (spellInfo->SpellFamilyFlags[1] & 0x10000));
+}
+
 // -11119 - Ignite
 class spell_mage_ignite : public AuraScript
 {
@@ -727,6 +741,9 @@ class spell_mage_ignite : public AuraScript
         {
             return false;
         }
+
+        if (IsMageTriggeredProcBlocked(eventInfo))
+            return false;
 
         // Molten Armor
         if (SpellInfo const* spellInfo = eventInfo.GetSpellInfo())
@@ -1270,6 +1287,11 @@ class spell_mage_hot_streak : public AuraScript
         return ValidateSpellInfo({ SPELL_MAGE_HOT_STREAK_PROC });
     }
 
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        return !IsMageTriggeredProcBlocked(eventInfo);
+    }
+
     void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
     {
         PreventDefaultAction();
@@ -1295,6 +1317,7 @@ class spell_mage_hot_streak : public AuraScript
 
     void Register() override
     {
+        DoCheckProc += AuraCheckProcFn(spell_mage_hot_streak::CheckProc);
         OnEffectProc += AuraEffectProcFn(spell_mage_hot_streak::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
     }
 
