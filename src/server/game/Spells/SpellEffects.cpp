@@ -3620,11 +3620,18 @@ void Spell::EffectWeaponDmg(SpellEffIndex effIndex)
                     {
                         AddComboPointGain(unitTarget, 1);
                     }
-                    // 50% more damage with daggers
+                    // more damage with daggers (wowsims): Fan of Knives x1.5, Hemorrhage 160/110, Ghostly Strike 180/125
                     if (unitCaster->IsPlayer())
                         if (Item* item = unitCaster->ToPlayer()->GetWeaponForAttack(m_attackType, true))
                             if (item->GetTemplate()->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER)
-                                AddPct(totalDamagePercentMod, 50.0f);
+                            {
+                                if (m_spellInfo->SpellFamilyFlags[0] & 0x2000000)
+                                    totalDamagePercentMod *= 160.0f / 110.0f;
+                                else if (m_spellInfo->SpellFamilyFlags[0] & 0x4000000)
+                                    totalDamagePercentMod *= 180.0f / 125.0f;
+                                else
+                                    AddPct(totalDamagePercentMod, 50.0f);
+                            }
                 }
                 // Mutilate (for each hand)
                 else if (m_spellInfo->SpellFamilyFlags[1] & 0x6)
