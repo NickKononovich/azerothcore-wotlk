@@ -620,15 +620,26 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                                 dmg_max += caster->GetWeaponDamageRange(RANGED_ATTACK, MAXDAMAGE, i);
                             }
 
+                            int32 weaponDamage = 0;
                             if (dmg_max == 0.0f && dmg_min > dmg_max)
                             {
-                                damage += int32(dmg_min);
+                                weaponDamage = int32(dmg_min);
                             }
                             else
                             {
-                                damage += irand(int32(dmg_min), int32(dmg_max));
+                                weaponDamage = irand(int32(dmg_min), int32(dmg_max));
                             }
-                            damage += int32(caster->GetAmmoDPS() * caster->GetAttackTime(RANGED_ATTACK) * 0.001f);
+
+                            // Weapon and ammo damage are normalized to a 2.8 s speed, unhasted
+                            // (wowsims sim/hunter/steady_shot.go:87-88)
+                            float const normalizedSpeed = 2.8f;
+                            float weaponSpeed = normalizedSpeed;
+                            if (Item* rangedWeapon = caster->GetWeaponForAttack(RANGED_ATTACK, true))
+                                if (rangedWeapon->GetTemplate()->Delay)
+                                    weaponSpeed = rangedWeapon->GetTemplate()->Delay * 0.001f;
+
+                            damage += int32(weaponDamage * normalizedSpeed / weaponSpeed);
+                            damage += int32(caster->GetAmmoDPS() * normalizedSpeed);
                         }
                     }
                     break;
