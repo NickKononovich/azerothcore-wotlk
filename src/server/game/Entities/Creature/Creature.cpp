@@ -1006,8 +1006,9 @@ void Creature::Regenerate(Powers power)
     {
         case POWER_FOCUS:
             {
-                // For hunter pets.
-                addvalue = 24 * sWorld->getRate(RATE_POWER_FOCUS);
+                // For hunter pets: 5 focus per second, 20 per 4 s tick
+                // (Rawr 2.3.23 Rawr.Hunter/Pet/PetCalculations.cs:69, wowsims sim/core/focus.go:13)
+                addvalue = 20 * sWorld->getRate(RATE_POWER_FOCUS);
                 break;
             }
         case POWER_ENERGY:
