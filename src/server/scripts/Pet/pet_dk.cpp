@@ -47,6 +47,7 @@ enum DeathKnightSpells
     // Risen Ally
     SPELL_DK_RAISE_ALLY             = 46619,
     SPELL_GHOUL_FRENZY              = 62218,
+    SPELL_GHOUL_CLAW                = 47468,
     // Gargoyle
     SPELL_GARGOYLE_STRIKE           = 51963,
 };
@@ -299,6 +300,27 @@ struct npc_pet_dk_ghoul : public CombatAI
                     AttackStart(target);
             }
             _summonTargetGUID.Clear();
+        }
+
+        // The Raise Dead guardian (no pet bar) claws whenever its energy pays for Claw, as the game's ghoul does:
+        // CombatAI cast its template spells on a 5-10 s timer (Claw at about half its energy rate, plus Leap, Gnaw
+        // and Huddle, the pet bar's manual abilities). The talented ghoul (a pet) keeps its pet bar's autocast.
+        if (!me->IsPet())
+        {
+            if (!UpdateVictim())
+                return;
+
+            if (me->IsActionPreventedByCasting())
+                return;
+
+            Unit* victim = me->GetVictim();
+            SpellInfo const* claw = sSpellMgr->GetSpellInfo(SPELL_GHOUL_CLAW);
+            if (victim && claw && me->IsWithinMeleeRange(victim) && !me->HasSpellCooldown(SPELL_GHOUL_CLAW) &&
+                int32(me->GetPower(POWER_ENERGY)) >= claw->CalcPowerCost(me, claw->GetSchoolMask()))
+                DoCastVictim(SPELL_GHOUL_CLAW);
+
+            DoMeleeAttackIfReady();
+            return;
         }
 
         CombatAI::UpdateAI(diff);
