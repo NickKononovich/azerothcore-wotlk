@@ -5253,6 +5253,13 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->DmgClass = SPELL_DAMAGE_CLASS_MAGIC;
     });
 
+    // Frost Fever, Blood Plague: the 3.3.5a tooltips (59921, 59879) deal "$m1*1.15 + $AP*0.055*1.15" per tick.
+    // spell_bonus_data already carries the 1.15 on the AP part (0.06325); scale the base part too.
+    ApplySpellFix({ 55095, 55078 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0].RealPointsPerLevel *= 1.15f;
+    });
+
     for (uint32 i = 0; i < GetSpellInfoStoreSize(); ++i)
     {
         SpellInfo* spellInfo = mSpellInfoMap[i];
