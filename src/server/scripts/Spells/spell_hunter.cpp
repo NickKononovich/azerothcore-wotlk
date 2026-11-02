@@ -89,12 +89,6 @@ enum HunterSpellIcons
     HUNTER_ICON_RAPID_RECUPERATION                  = 3560
 };
 
-enum HunterLockAndLoad
-{
-    // wowsims sim/hunter/talents.go:544 - rank 3 procs on 20 % of Black Arrow / fire trap ticks (DBC: 6 %)
-    LOCK_AND_LOAD_RANK_3_PERIODIC_CHANCE            = 20
-};
-
 class spell_hun_check_pet_los : public SpellScript
 {
     PrepareSpellScript(spell_hun_check_pet_los);
@@ -1265,11 +1259,7 @@ class spell_hun_lock_and_load : public AuraScript
         if (!(eventInfo.GetTypeMask() & PROC_FLAG_DONE_PERIODIC))
             return false;
 
-        int32 chance = aurEff->GetAmount();
-        if (GetSpellInfo()->GetRank() == 3)
-            chance = LOCK_AND_LOAD_RANK_3_PERIODIC_CHANCE;
-
-        return roll_chance_i(chance);
+        return roll_chance_i(aurEff->GetAmount());
     }
 
     void HandleProc(ProcEventInfo& eventInfo)
