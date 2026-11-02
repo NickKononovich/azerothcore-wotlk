@@ -5806,6 +5806,11 @@ void Spell::HandleThreatSpells()
             threat += threatEntry->apPctMod * unitCaster->GetTotalAttackPowerValue(BASE_ATTACK);
 
         threat += threatEntry->flatMod;
+
+        // Glyph of Devastate doubles Devastate's bonus threat (Rawr.ProtWarr AbilityModel.cs:137-141)
+        if (m_spellInfo->SpellFamilyName == SPELLFAMILY_WARRIOR && (m_spellInfo->SpellFamilyFlags[1] & 0x40) &&
+            unitCaster->HasAura(58388))
+            threat *= 2.0f;
     }
     else if (!m_spellInfo->HasAttribute(SPELL_ATTR0_CU_NO_INITIAL_THREAT))
         threat += m_spellInfo->SpellLevel;
