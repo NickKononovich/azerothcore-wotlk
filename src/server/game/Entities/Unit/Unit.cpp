@@ -12657,6 +12657,11 @@ Player* Unit::GetSpellModOwner() const
         return player;
     }
 
+    // Mirror Images cast with their own spell power share and the target's debuffs only, none of the owner's talents,
+    // glyphs or buffs (Rawr.Mage SpellInfo/SpellData.cs:170-208)
+    if (GetEntry() == NPC_MIRROR_IMAGE)
+        return nullptr;
+
     if (Unit* owner = GetOwner())
     {
         if (Player* player = owner->ToPlayer())
