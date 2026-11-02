@@ -8233,6 +8233,23 @@ float Unit::SpellPctDamageModsDone(Unit* victim, SpellInfo const* spellProto, Da
     // Done total percent damage auras
     float DoneTotalMod = 1.0f;
 
+    // Hunter pet happiness scales its spell damage too, not only its weapon damage (Unit::UpdateDamagePhysical)
+    // wowsims sim/hunter/pet.go:61 (Happy: DamageDealtMultiplier x1.25)
+    if (IsHunterPet())
+    {
+        switch (ToPet()->GetHappinessState())
+        {
+            case HAPPY:
+                DoneTotalMod *= 1.25f;
+                break;
+            case UNHAPPY:
+                DoneTotalMod *= 0.75f;
+                break;
+            default:
+                break;
+        }
+    }
+
     DoneTotalMod *= GetTotalAuraMultiplier(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, [spellProto, this, damagetype](AuraEffect const* aurEff)
     {
         // prevent apply mods from weapon specific case to non weapon specific spells (Example: thunder clap and two-handed weapon specialization)
