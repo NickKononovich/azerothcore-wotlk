@@ -408,7 +408,9 @@ void SpellMgr::LoadSpellInfoCorrections()
     // Marked for Death
     ApplySpellFix({ 53241, 53243, 53244, 53245, 53246 }, [](SpellInfo* spellInfo)
     {
-        spellInfo->Effects[EFFECT_0].SpellClassMask = flag96(399361, 276955137, 1);
+        // + Black Arrow ([0] 0x80, [1] 0x8000000) and the Explosive Shot tick ([2] 0x200): Rawr.Hunter
+        // CalculationsHunter.cs:2060, 2081-2089 applies Marked for Death to every shot, :2340, :2490
+        spellInfo->Effects[EFFECT_0].SpellClassMask = flag96(399361 | 0x80, 276955137 | 0x8000000, 1 | 0x200);
     });
 
     ApplySpellFix({

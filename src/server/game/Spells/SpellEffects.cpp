@@ -3723,7 +3723,7 @@ void Spell::EffectWeaponDmg(SpellEffIndex effIndex)
                 // Kill Shot
                 if (m_spellInfo->SpellFamilyFlags[1] & 0x800000)
                 {
-                    spell_bonus += int32(unitCaster->GetTotalAttackPowerValue(RANGED_ATTACK) * 0.4f);
+                    spell_bonus += int32(unitCaster->GetTotalAttackPowerValue(RANGED_ATTACK, unitTarget) * 0.4f);
                 }
                 break;
             }

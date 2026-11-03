@@ -1205,8 +1205,9 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
     {
         case HUNTER_PET:
             {
-                SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel - (petlevel / 4)));
-                SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel + (petlevel / 4)));
+                // Rawr.Hunter Pet/PetCalculations.cs:903: 52-78 at level 80 (0.65 / 0.975 x level)
+                SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel) * 0.65f);
+                SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel) * 0.975f);
                 SetUInt32Value(UNIT_FIELD_PETNEXTLEVELEXP, uint32(sObjectMgr->GetXPForLevel(petlevel)* sWorld->getRate(RATE_XP_PET_NEXT_LEVEL)));
                 break;
             }

@@ -3657,7 +3657,8 @@ float Unit::GetUnitCriticalChance(WeaponAttackType attackType, Unit const* victi
     }
     else
     {
-        crit = 5.0f;
+        // hunter pets: 3.2 % + agility / 62.5 (Rawr.Hunter Pet/PetCalculations.cs:467-469)
+        crit = IsHunterPet() ? 3.2f + GetStat(STAT_AGILITY) / 62.5f : 5.0f;
         crit += GetTotalAuraModifier(SPELL_AURA_MOD_WEAPON_CRIT_PERCENT);
         crit += GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PCT);
     }
@@ -8984,7 +8985,8 @@ float Unit::SpellDoneCritChance(Unit const* /*victim*/, SpellInfo const* spellPr
                 }
                 else
                 {
-                    crit_chance = 5.0f;
+                    // hunter pets: 3.2 % + agility / 62.5 (Rawr.Hunter Pet/PetCalculations.cs:467-469)
+                    crit_chance = IsHunterPet() ? 3.2f + GetStat(STAT_AGILITY) / 62.5f : 5.0f;
                     crit_chance += GetTotalAuraModifier(SPELL_AURA_MOD_WEAPON_CRIT_PERCENT);
                     crit_chance += GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PCT);
                 }
