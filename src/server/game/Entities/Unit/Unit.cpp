@@ -8503,6 +8503,14 @@ float Unit::SpellPctDamageModsDone(Unit* victim, SpellInfo const* spellProto, Da
                 if (AuraEffect* aurEff = GetAuraEffectOfRankedSpell(16836, 0))
                     AddPct(DoneTotalMod, aurEff->GetAmount());
             }
+            // Wrath: Improved Insect Swarm multiplies the whole damage, spell power part included, when the target has
+            // Insect Swarm (Rawr.Moonkin SpellRotation.cs:219-224)
+            else if (spellProto->SpellFamilyFlags[0] & 0x1)
+            {
+                if (AuraEffect const* aurEff = GetDummyAuraEffect(SPELLFAMILY_DRUID, 1771, 0))
+                    if (victim->GetAuraEffect(SPELL_AURA_PERIODIC_DAMAGE, SPELLFAMILY_DRUID, 0x00200000, 0, 0))
+                        AddPct(DoneTotalMod, aurEff->GetAmount());
+            }
             break;
         case SPELLFAMILY_WARLOCK:
             // Fire and Brimstone

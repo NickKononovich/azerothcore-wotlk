@@ -504,14 +504,7 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                         damage += int32(energy * multiple);
                         damage += int32(CalculatePct(unitCaster->GetComboPoints() * ap, 7));
                     }
-                    // Wrath
-                    else if (m_spellInfo->SpellFamilyFlags[0] & 0x00000001)
-                    {
-                        // Improved Insect Swarm
-                        if (AuraEffect const* aurEff = unitCaster->GetDummyAuraEffect(SPELLFAMILY_DRUID, 1771, 0))
-                            if (unitTarget->GetAuraEffect(SPELL_AURA_PERIODIC_DAMAGE, SPELLFAMILY_DRUID, 0x00200000, 0, 0))
-                                AddPct(damage, aurEff->GetAmount());
-                    }
+                    // Wrath: Improved Insect Swarm is applied in Unit::SpellPctDamageModsDone
                     break;
                 }
             case SPELLFAMILY_ROGUE:

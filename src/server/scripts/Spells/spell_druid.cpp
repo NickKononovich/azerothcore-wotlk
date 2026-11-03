@@ -240,7 +240,26 @@ class spell_dru_omen_of_clarity : public AuraScript
         return ValidateSpellInfo({ SPELL_DRUID_BALANCE_T10_BONUS, SPELL_DRUID_BALANCE_T10_BONUS_PROC });
     }
 
+    // Rawr 2.3.23: 6 % per spell cast (Rawr.Moonkin SpellRotation.cs:197, 253-255, 322-326, 356), 3.5 procs per
+    // minute on white swings (Rawr.Cat). spell_proc has Chance 100 / no PPM, the roll is made here.
     bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        if (!IsOmenEvent(eventInfo))
+            return false;
+
+        SpellInfo const* spellInfo = eventInfo.GetSpellInfo();
+        if (!spellInfo || spellInfo->DmgClass == SPELL_DAMAGE_CLASS_MELEE)
+        {
+            Unit* actor = eventInfo.GetActor();
+            DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+            WeaponAttackType attType = damageInfo ? damageInfo->GetAttackType() : BASE_ATTACK;
+            return roll_chance_f(actor->GetPPMProcChance(actor->GetAttackTime(attType), 3.5f, GetSpellInfo()));
+        }
+
+        return roll_chance_f(6.0f);
+    }
+
+    bool IsOmenEvent(ProcEventInfo& eventInfo) const
     {
         SpellInfo const* spellInfo = eventInfo.GetSpellInfo();
         if (!spellInfo)
@@ -971,22 +990,6 @@ class spell_dru_savage_roar_aura : public AuraScript
     {
         AfterEffectApply += AuraEffectApplyFn(spell_dru_savage_roar_aura::AfterApply, EFFECT_1, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
         AfterEffectRemove += AuraEffectRemoveFn(spell_dru_savage_roar_aura::AfterRemove, EFFECT_1, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
-    }
-};
-
-// -50294 - Starfall
-class spell_dru_starfall_aoe : public SpellScript
-{
-    PrepareSpellScript(spell_dru_starfall_aoe);
-
-    void FilterTargets(std::list<WorldObject*>& targets)
-    {
-        targets.remove(GetExplTargetUnit());
-    }
-
-    void Register() override
-    {
-        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_dru_starfall_aoe::FilterTargets, EFFECT_0, TARGET_UNIT_DEST_AREA_ENEMY);
     }
 };
 
@@ -2132,7 +2135,6 @@ void AddSC_druid_spell_scripts()
     RegisterSpellScript(spell_dru_rip);
     RegisterSpellScript(spell_dru_savage_defense);
     RegisterSpellAndAuraScriptPair(spell_dru_savage_roar, spell_dru_savage_roar_aura);
-    RegisterSpellScript(spell_dru_starfall_aoe);
     RegisterSpellScript(spell_dru_starfall_dummy);
     RegisterSpellAndAuraScriptPair(spell_dru_survival_instincts, spell_dru_survival_instincts_aura);
     RegisterSpellScript(spell_dru_swift_flight_passive);
