@@ -11255,9 +11255,15 @@ void Player::AddSpellAndCategoryCooldowns(SpellInfo const* spellInfo, uint32 ite
                 // cooldown, Arcane Power's 15 s lock left Presence of Mind's; Rawr.Mage Solver.cs:2013 cools Arcane
                 // Power 120 s * (1 - 0.15 * Arcane Flows)). The overwrite let b218 rfc-h 5D's arcane mage alternate
                 // Arcane Power and Presence of Mind every 18-20 s.
+                // [core640] An "infinity" entry is no own cooldown but the lock a cooldown-on-event sibling left while
+                // its effect lasted (52150, the Master of Ghouls ghoul, locks Raise Dead 46584 / 46585 in category
+                // 1245 on SetMinion): its event replaces it with the real lock, else Raise Dead stayed locked until
+                // relog (b221 rfc-h 5D Rtdekab: the ghoul loaded at login was dismissed, Raise Dead "on cooldown"
+                // all run, no ghoul, Claw 70 DPS vs the sim's 399).
+                uint32 const now = uint32(GameTime::GetGameTimeMS().count());
                 SpellCooldowns::const_iterator const own = m_spellCooldowns.find(i_scset->second);
-                if (own != m_spellCooldowns.end() &&
-                    own->second.end >= uint32(GameTime::GetGameTimeMS().count() + catrecTime))
+                if (own != m_spellCooldowns.end() && own->second.end < now + infinityCooldownDelayCheck &&
+                    own->second.end >= uint32(now + catrecTime))
                     continue;
 
                 _AddSpellCooldown(i_scset->second, cat, itemId, catrecTime, !spellInfo->IsCooldownStartedOnEvent() && catrec && rec && catrec != rec);
