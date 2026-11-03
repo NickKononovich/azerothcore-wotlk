@@ -3706,9 +3706,8 @@ void Spell::EffectWeaponDmg(SpellEffIndex effIndex)
                 // Stormstrike
                 if (AuraEffect* aurEff = unitCaster->IsScriptOverriden(m_spellInfo, 5634))
                     unitCaster->CastSpell(unitCaster, 38430, true, nullptr, aurEff);
-                // Lava lash damage increased by Flametongue weapon
-                if (unitCaster->GetAuraEffect(SPELL_AURA_DUMMY, SPELLFAMILY_SHAMAN, 688, EFFECT_0))
-                    AddPct(totalDamagePercentMod, 25.0f);
+                // Lava Lash's Flametongue bonus is applied by spell_sha_lava_lash only; Stormstrike and Windfury Attack
+                // get none (Rawr.Enhance CalculationsEnhance.cs:364-387, 450-454)
                 break;
             }
         case SPELLFAMILY_DRUID:

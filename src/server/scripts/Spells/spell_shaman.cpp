@@ -32,6 +32,7 @@
 enum ShamanSpells
 {
     SPELL_SHAMAN_GLYPH_OF_FERAL_SPIRIT          = 63271,
+    SPELL_SHAMAN_GLYPH_OF_LAVA_LASH             = 55444,
     SPELL_SHAMAN_ANCESTRAL_AWAKENING_PROC       = 52752,
     SPELL_SHAMAN_BIND_SIGHT                     = 6277,
     SPELL_SHAMAN_CLEANSING_TOTEM_EFFECT         = 52025,
@@ -1042,17 +1043,29 @@ class spell_sha_lava_lash : public SpellScript
 
     void HandleDummy(SpellEffIndex /*effIndex*/)
     {
+        // Rawr.Enhance CalculationsEnhance.cs:381-387: x1.25 if the off-hand is imbued with Flametongue, and Glyph of
+        // Lava Lash multiplies that by a separate x1.1
         if (Player* caster = GetCaster()->ToPlayer())
         {
-            int32 damage = GetEffectValue();
+            Item* offhand = caster->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
+            if (!offhand)
+                return;
+
+            bool offhandFlametongue = false;
+            for (AuraEffect const* aurEff : caster->GetAuraEffectsByType(SPELL_AURA_DUMMY))
+                if (aurEff->GetSpellInfo()->SpellFamilyName == SPELLFAMILY_SHAMAN &&
+                    (aurEff->GetSpellInfo()->SpellFamilyFlags[0] & 0x200000) &&
+                    aurEff->GetBase()->GetCastItemGUID() == offhand->GetGUID())
+                    offhandFlametongue = true;
+
+            if (!offhandFlametongue)
+                return;
+
             int32 hitDamage = GetHitDamage();
-            if (caster->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
-            {
-                // Damage is increased by 25% if your off-hand weapon is enchanted with Flametongue.
-                if (caster->GetAuraEffect(SPELL_AURA_DUMMY, SPELLFAMILY_SHAMAN, 0x200000, 0, 0))
-                    AddPct(hitDamage, damage);
-                SetHitDamage(hitDamage);
-            }
+            AddPct(hitDamage, GetSpellInfo()->Effects[EFFECT_1].CalcValue());
+            if (caster->HasAura(SPELL_SHAMAN_GLYPH_OF_LAVA_LASH))
+                AddPct(hitDamage, 10);
+            SetHitDamage(hitDamage);
         }
     }
 
@@ -1542,6 +1555,11 @@ class spell_sha_flametongue_weapon : public AuraScript
         WeaponAttackType attType = Player::GetAttackBySlot(item->GetSlot());
         if (attType != BASE_ATTACK && attType != OFF_ATTACK)
             return false;
+
+        // Lava Lash does not trigger Flametongue Attack (Rawr.Enhance CalculationsEnhance.cs:522)
+        if (SpellInfo const* spellInfo = eventInfo.GetSpellInfo())
+            if (spellInfo->Id == SPELL_SHAMAN_LAVA_LASH)
+                return false;
 
         if (((attType == BASE_ATTACK) && !(eventInfo.GetTypeMask() & PROC_FLAG_DONE_MAINHAND_ATTACK)) ||
             ((attType == OFF_ATTACK) && !(eventInfo.GetTypeMask() & PROC_FLAG_DONE_OFFHAND_ATTACK)))
