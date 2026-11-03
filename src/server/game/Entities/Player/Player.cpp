@@ -11250,6 +11250,16 @@ void Player::AddSpellAndCategoryCooldowns(SpellInfo const* spellInfo, uint32 ite
                     continue;
                 }
 
+                // [core600] the category cooldown is a lock on top of the spell's own cooldown, never a shorter
+                // replacement of it (3.3.5a: Presence of Mind's 1.5 s category lock left Arcane Power's 2 min
+                // cooldown, Arcane Power's 15 s lock left Presence of Mind's; Rawr.Mage Solver.cs:2013 cools Arcane
+                // Power 120 s * (1 - 0.15 * Arcane Flows)). The overwrite let b218 rfc-h 5D's arcane mage alternate
+                // Arcane Power and Presence of Mind every 18-20 s.
+                SpellCooldowns::const_iterator const own = m_spellCooldowns.find(i_scset->second);
+                if (own != m_spellCooldowns.end() &&
+                    own->second.end >= uint32(GameTime::GetGameTimeMS().count() + catrecTime))
+                    continue;
+
                 _AddSpellCooldown(i_scset->second, cat, itemId, catrecTime, !spellInfo->IsCooldownStartedOnEvent() && catrec && rec && catrec != rec);
 
                 if (spellInfo->HasAttribute(SPELL_ATTR0_CU_FORCE_SEND_CATEGORY_COOLDOWNS))
