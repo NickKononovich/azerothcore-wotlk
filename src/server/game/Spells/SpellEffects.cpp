@@ -3885,7 +3885,10 @@ void Spell::EffectWeaponDmg(SpellEffIndex effIndex)
     if (!isPhysical && m_attackType == OFF_ATTACK)
     {
         float const offhandPct = 0.5f * unitCaster->GetTotalAuraMultiplier(SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT,
-            [unitCaster](AuraEffect const* aurEff) { return unitCaster->CheckAttackFitToAuraRequirement(OFF_ATTACK, aurEff); });
+            [unitCaster](AuraEffect const* aurEff)
+            {
+                return unitCaster->CheckAttackFitToAuraRequirement(OFF_ATTACK, aurEff);
+            });
         weaponDamage = int32(weaponDamage * offhandPct);
         if (m_spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT)
             fixed_bonus *= 2;
