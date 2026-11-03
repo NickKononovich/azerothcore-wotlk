@@ -10033,6 +10033,8 @@ static bool IsMultiplicativeDamageSpellMod(uint32 modSpellId)
         case 47383: case 71162: case 71165:                         // Molten Core buff (Rawr.Warlock Spells.cs:1506)
         case 51483: case 51485: case 51486:                         // Storm, Earth and Fire (Rawr.Elemental FlameShock.cs)
         case 64925:                                                 // Shaman T8 Elemental 2P (Rawr.Elemental FlameShock.cs)
+        case 56371:                                                 // Glyph of Scorch (Rawr.Mage SpellData.cs:385-388)
+        case 61205:                                                 // Glyph of Frostfire (Rawr.Mage SpellData.cs:956-960)
             return true;
         default:
             return false;
@@ -10098,6 +10100,10 @@ void Player::ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue, Spell* s
                 totalmul *= CalculatePct(1.0f, 100.0f + mod->value);
             else if (mod->op == SPELLMOD_DAMAGE || mod->op == SPELLMOD_DOT)
                 additiveDamagePct += mod->value;
+            // proc rate bonuses multiply: Instant Poison x (1 + Improved Poisons) x 1.75 during Envenom
+            // (Rawr.Rogue RogueRotationCalculator.cs:299, 304-305)
+            else if (mod->op == SPELLMOD_PROC_PER_MINUTE)
+                totalmul *= CalculatePct(1.0f, 100.0f + mod->value);
             else
                 totalmul += CalculatePct(1.0f, mod->value);
         }

@@ -3852,6 +3852,10 @@ void Spell::EffectWeaponDmg(SpellEffIndex effIndex)
             // Base damage is already halved in DBC for Threat of Thassarian off-hand spells
             if (m_spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT)
                 fixed_bonus *= 2;
+            // Mutilate off-hand: the flat 181 takes Dual Wield Specialization but not the 50 % off-hand penalty
+            // (Rawr.Rogue CalculationsRogue.cs:628)
+            else if (m_spellInfo->SpellFamilyName == SPELLFAMILY_ROGUE && (m_spellInfo->SpellFamilyFlags[1] & 0x4))
+                fixed_bonus *= 2;
             break;
         case RANGED_ATTACK:
             unitMod = UNIT_MOD_DAMAGE_RANGED;
