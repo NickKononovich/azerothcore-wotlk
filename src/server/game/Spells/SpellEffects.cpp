@@ -537,7 +537,12 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                                     {
                                         if ((*iter)->GetSpellInfo()->SpellFamilyName == SPELLFAMILY_ROGUE && (*iter)->GetSpellInfo()->SpellIconID == 1960)
                                         {
-                                            uint32 chance = (*iter)->GetSpellInfo()->Effects[EFFECT_2].CalcValue(unitCaster);
+                                            // 33 / 66 / 100 % by rank (31226, 31227, 58410; tooltip, wowsims
+                                            // rogue/envenom.go:23): the 3.3.5a DBC has no third effect to read
+                                            // it from, Effects[EFFECT_2] gave 0 and every Envenom ate its doses
+                                            static constexpr uint32 retainChance[] = { 0, 33, 66, 100 };
+                                            uint8 const rank = std::min<uint8>(3, (*iter)->GetSpellInfo()->GetRank());
+                                            uint32 chance = retainChance[rank];
 
                                             if (chance && roll_chance_i(chance))
                                                 needConsume = false;
