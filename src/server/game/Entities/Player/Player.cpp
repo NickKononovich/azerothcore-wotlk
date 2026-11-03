@@ -11266,6 +11266,10 @@ void Player::AddSpellAndCategoryCooldowns(SpellInfo const* spellInfo, uint32 ite
                     own->second.end >= uint32(now + catrecTime))
                     continue;
 
+                if (own != m_spellCooldowns.end() && own->second.end >= now + infinityCooldownDelayCheck)
+                    LOG_DEBUG("entities.player", "[core640] {}: {}'s event lock replaces the infinity lock on {}",
+                              GetName(), spellInfo->Id, i_scset->second);
+
                 _AddSpellCooldown(i_scset->second, cat, itemId, catrecTime, !spellInfo->IsCooldownStartedOnEvent() && catrec && rec && catrec != rec);
 
                 if (spellInfo->HasAttribute(SPELL_ATTR0_CU_FORCE_SEND_CATEGORY_COOLDOWNS))
