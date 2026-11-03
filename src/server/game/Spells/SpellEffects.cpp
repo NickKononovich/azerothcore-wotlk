@@ -3871,6 +3871,22 @@ void Spell::EffectWeaponDmg(SpellEffIndex effIndex)
         weaponDamage = unitCaster->CalculateDamage(m_attackType, normalized, isPhysical);
     }
 
+    // A non-physical off-hand strike (Frost Strike off-hand 66962, Lava Lash 60103) skips the off-hand TOTAL_PCT
+    // above, which holds the physical damage-done mods and also the 50 % off-hand penalty and
+    // SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT (Nerves of Cold Steel). The penalty and the off-hand mods still apply:
+    // Rawr.DPSDK Ability.cs:350-353 (Frost Strike off-hand: (weapon + 250) x 0.55 x 0.5 x (1 + NoCS / 12)),
+    // Rawr.Enhance CalculationsEnhance.cs:338/349/377 (Lava Lash: the off-hand swing x 0.5). The DBC off-hand flat
+    // bonus of a Threat of Thassarian strike is already halved, the physical branch above doubles it.
+    if (!isPhysical && m_attackType == OFF_ATTACK)
+    {
+        float const offhandPct = 0.5f * unitCaster->GetTotalAuraMultiplier(SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT,
+            [unitCaster](AuraEffect const* aurEff) { return unitCaster->CheckAttackFitToAuraRequirement(OFF_ATTACK, aurEff); });
+        weaponDamage = int32(weaponDamage * offhandPct);
+        if (m_spellInfo->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT)
+            fixed_bonus *= 2;
+        fixed_bonus = int32(fixed_bonus * offhandPct);
+    }
+
     // Sequence is important
     for (int j = 0; j < MAX_SPELL_EFFECTS; ++j)
     {
