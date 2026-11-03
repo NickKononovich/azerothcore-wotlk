@@ -11266,6 +11266,12 @@ void Player::AddSpellAndCategoryCooldowns(SpellInfo const* spellInfo, uint32 ite
                     own->second.end >= uint32(now + catrecTime))
                     continue;
 
+                // [core642] nor does the infinity lock take a running own cooldown's place: the event's real lock
+                // would then replace it (Presence of Mind's 1.5 s on an Arcane Power with 100 s left)
+                if (infinityCooldown && own != m_spellCooldowns.end() && own->second.end > now &&
+                    own->second.end < now + infinityCooldownDelayCheck)
+                    continue;
+
                 if (own != m_spellCooldowns.end() && own->second.end >= now + infinityCooldownDelayCheck)
                     LOG_DEBUG("entities.player", "[core640] {}: {}'s event lock replaces the infinity lock on {}",
                               GetName(), spellInfo->Id, i_scset->second);
