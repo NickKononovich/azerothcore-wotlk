@@ -139,6 +139,11 @@ void ScriptMgr::OnUnitSetShapeshiftForm(Unit* unit, uint8 form)
     CALL_ENABLED_HOOKS(UnitScript, UNITHOOK_ON_UNIT_SET_SHAPESHIFT_FORM, script->OnUnitSetShapeshiftForm(unit, form));
 }
 
+void ScriptMgr::OnPowerGain(Unit* unit, uint8 power, int32 gain, uint8 source, uint32 spellId)
+{
+    CALL_ENABLED_HOOKS(UnitScript, UNITHOOK_ON_POWER_GAIN, script->OnPowerGain(unit, power, gain, source, spellId));
+}
+
 UnitScript::UnitScript(char const* name, bool addToScripts, std::vector<uint16> enabledHooks)
     : ScriptObject(name, UNITHOOK_END)
 {

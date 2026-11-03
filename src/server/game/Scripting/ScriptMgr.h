@@ -584,6 +584,7 @@ public: /* UnitScript */
     void OnUnitExitCombat(Unit* unit);
     void OnUnitDeath(Unit* unit, Unit* killer);
     void OnUnitSetShapeshiftForm(Unit* unit, uint8 form);
+    void OnPowerGain(Unit* unit, uint8 power, int32 gain, uint8 source, uint32 spellId);
 
 public: /* MovementHandlerScript */
     void OnPlayerMove(Player* player, MovementInfo movementInfo, uint32 opcode);

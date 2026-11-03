@@ -6874,6 +6874,8 @@ void AuraEffect::HandlePeriodicEnergizeAuraTick(Unit* target, Unit* caster) cons
     LOG_DEBUG("spells.aura.effect", "PeriodicTick: {} energize {} for {} dmg inflicted by {}",
                     GetCasterGUID().ToString(), target->GetGUID().ToString(), amount, GetId());
     int32 gain = target->ModifyPower(PowerType, amount);
+    if (gain > 0)
+        sScriptMgr->OnPowerGain(target, PowerType, gain, POWER_GAIN_SOURCE_SPELL, GetId());
 
     if (caster)
         target->GetThreatMgr().ForwardThreatForAssistingMe(caster, float(gain) * 0.5f, GetSpellInfo(), true);

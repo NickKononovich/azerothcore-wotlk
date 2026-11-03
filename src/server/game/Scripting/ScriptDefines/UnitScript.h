@@ -44,7 +44,15 @@ enum UnitHook
     UNITHOOK_ON_UNIT_EXIT_COMBAT,
     UNITHOOK_ON_UNIT_DEATH,
     UNITHOOK_ON_UNIT_SET_SHAPESHIFT_FORM,
+    UNITHOOK_ON_POWER_GAIN,
     UNITHOOK_END
+};
+
+enum PowerGainSource : uint8
+{
+    POWER_GAIN_SOURCE_SPELL        = 0, // an energize effect or periodic energize tick
+    POWER_GAIN_SOURCE_DAMAGE_DONE  = 1, // Unit::RewardRage, attacker
+    POWER_GAIN_SOURCE_DAMAGE_TAKEN = 2  // Unit::RewardRage, victim
 };
 
 enum ReputationRank : uint8;
@@ -110,6 +118,10 @@ public:
     virtual void OnUnitExitCombat(Unit* /*unit*/) { }
     virtual void OnUnitDeath(Unit* /*unit*/, Unit* /*killer*/) { }
     virtual void OnUnitSetShapeshiftForm(Unit* /*unit*/, uint8 /*form*/) { }
+
+    // Called when a unit gained power: gain is what the power bar took (capped at its max), source names where it
+    // came from (POWER_GAIN_SOURCE_*), spellId the energizing spell (0 for rage from damage)
+    virtual void OnPowerGain(Unit* /*unit*/, uint8 /*power*/, int32 /*gain*/, uint8 /*source*/, uint32 /*spellId*/) { }
 };
 
 #endif

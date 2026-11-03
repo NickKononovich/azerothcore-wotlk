@@ -8196,7 +8196,8 @@ void Unit::SendEnergizeSpellLog(Unit* victim, uint32 spellID, uint32 damage, Pow
 
 void Unit::EnergizeBySpell(Unit* victim, uint32 spellID, uint32 damage, Powers powerType)
 {
-    victim->ModifyPower(powerType, damage, false);
+    if (int32 gain = victim->ModifyPower(powerType, damage, false); gain > 0)
+        sScriptMgr->OnPowerGain(victim, powerType, gain, POWER_GAIN_SOURCE_SPELL, spellID);
 
     // Happiness is internal hunter pet state, not combat assistance — energizing it must not generate threat
     if (powerType != POWER_HAPPINESS)
@@ -15807,7 +15808,9 @@ void Unit::RewardRage(uint32 damage, uint32 weaponSpeedHitFactor, bool attacker)
 
     addRage *= sWorld->getRate(RATE_POWER_RAGE_INCOME);
 
-    ModifyPower(POWER_RAGE, uint32(addRage * 10));
+    if (int32 gain = ModifyPower(POWER_RAGE, uint32(addRage * 10)); gain > 0)
+        sScriptMgr->OnPowerGain(this, POWER_RAGE, gain,
+            attacker ? POWER_GAIN_SOURCE_DAMAGE_DONE : POWER_GAIN_SOURCE_DAMAGE_TAKEN, 0);
 }
 
 void Unit::StopAttackFaction(uint32 faction_id)
