@@ -1328,6 +1328,12 @@ void Guardian::UpdateAttackPowerAndDamage(bool ranged)
         val = GetStat(STAT_STRENGTH) - 10.0f;
     else if (IsPetGhoul())                                         // DK's ghoul attack power
         val = 589 /*xinef: base ap!*/ + GetStat(STAT_STRENGTH) + GetStat(STAT_AGILITY);
+    // Army of the Dead ghoul: no pet_levelstats row, so 2 x the fallback strength - 20 gave it ~25 base attack power
+    // (Claw at ~0.6 of the sim). wowsims deathknight/ghoul_pet.go:32-36, 63-64: agility 856 + strength 0 - 20 = 836
+    // base attack power, as the Raise Dead ghoul's 589 + 247 agility (Rawr.DPSDK GhoulBaseAP 836); the owner's 6.5 %
+    // comes from Army of the Dead Passive 49040 (spell_dk_army_of_the_dead_passive)
+    else if (GetEntry() == NPC_ARMY_OF_THE_DEAD)
+        val = 836.0f;
     else
         val = 2 * GetStat(STAT_STRENGTH) - 20.0f;
 
