@@ -1167,9 +1167,9 @@ class spell_mage_gen_extra_effects : public AuraScript
                 return false;
         }
 
-        // T8 4P bonus: chance to not consume the proc
-        if (AuraEffect const* aurEff = caster->GetAuraEffect(SPELL_MAGE_T8_4P_BONUS, EFFECT_0))
-            if (roll_chance_i(aurEff->GetAmount()))
+        // T8 4P bonus: 25 % chance to not consume the proc (Rawr.Mage CalculationOptionsMage.cs:67; the DBC says 10)
+        if (caster->HasAura(SPELL_MAGE_T8_4P_BONUS))
+            if (roll_chance_i(25))
                 return false;
 
         return true;
@@ -1615,9 +1615,9 @@ class spell_mage_missile_barrage_proc : public AuraScript
         if (caster == eventInfo.GetActionTarget())
             return false;
 
-        // T8 4P bonus: chance to not consume the proc
-        if (AuraEffect const* aurEff = caster->GetAuraEffect(SPELL_MAGE_T8_4P_BONUS, EFFECT_0))
-            if (roll_chance_i(aurEff->GetAmount()))
+        // T8 4P bonus: 25 % chance to not consume the proc (Rawr.Mage CalculationOptionsMage.cs:67; the DBC says 10)
+        if (caster->HasAura(SPELL_MAGE_T8_4P_BONUS))
+            if (roll_chance_i(25))
                 return false;
 
         return true;
