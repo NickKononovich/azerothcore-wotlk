@@ -406,6 +406,20 @@ struct npc_pet_dk_army_of_the_dead : public AggressorAI
             return;
         }
 
+        // [core520] b212 rfc-h: the Army ghouls (24207) swung white only - AggressorAI casts no template spell, and
+        // their creature_template_spell lists Claw (47468, slot 0) and Leap. Rawr models no Army ghoul; the 3.3.5a
+        // data (the template, spell 42650's "taunting and fighting anything they can") is the reference: they claw
+        // whenever their energy pays for it, as the Raise Dead guardian above. Their aggro on the boss is that
+        // tooltip's taunting, kept as it is.
+        if (me->IsActionPreventedByCasting())
+            return;
+
+        Unit* victim = me->GetVictim();
+        SpellInfo const* claw = sSpellMgr->GetSpellInfo(SPELL_GHOUL_CLAW);
+        if (victim && claw && me->IsWithinMeleeRange(victim) && !me->HasSpellCooldown(SPELL_GHOUL_CLAW) &&
+            int32(me->GetPower(POWER_ENERGY)) >= claw->CalcPowerCost(me, claw->GetSchoolMask()))
+            DoCastVictim(SPELL_GHOUL_CLAW);
+
         DoMeleeAttackIfReady();
     }
 };
