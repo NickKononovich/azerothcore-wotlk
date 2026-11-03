@@ -8677,8 +8677,9 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, uin
             if (bonus->ap_dot_bonus > 0)
             {
                 WeaponAttackType attType = (spellProto->IsRangedWeaponSpell() && spellProto->DmgClass != SPELL_DAMAGE_CLASS_MELEE) ? RANGED_ATTACK : BASE_ATTACK;
-                float APbonus = float(victim->GetTotalAuraModifier(attType == BASE_ATTACK ? SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS : SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS));
-                APbonus += GetTotalAttackPowerValue(attType);
+                // the target's attack power bonus (Hunter's Mark) takes the attack power multiplier like any other
+                // attack power (Rawr.Hunter CalculationsHunter.cs:2954-2957, used by Black Arrow at :2483)
+                float APbonus = GetTotalAttackPowerValue(attType, victim);
                 DoneTotal += int32(bonus->ap_dot_bonus * stack * ApCoeffMod * APbonus);
             }
         }
@@ -8688,8 +8689,9 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, uin
             if (bonus->ap_bonus > 0)
             {
                 WeaponAttackType attType = (spellProto->IsRangedWeaponSpell() && spellProto->DmgClass != SPELL_DAMAGE_CLASS_MELEE) ? RANGED_ATTACK : BASE_ATTACK;
-                float APbonus = float(victim->GetTotalAuraModifier(attType == BASE_ATTACK ? SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS : SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS));
-                APbonus += GetTotalAttackPowerValue(attType);
+                // the target's attack power bonus (Hunter's Mark) takes the attack power multiplier like any other
+                // attack power (Rawr.Hunter CalculationsHunter.cs:2954-2957, used by Black Arrow at :2483)
+                float APbonus = GetTotalAttackPowerValue(attType, victim);
                 DoneTotal += int32(bonus->ap_bonus * stack * ApCoeffMod * APbonus);
             }
         }
@@ -10007,16 +10009,20 @@ uint32 Unit::MeleeDamageBonusDone(Unit* victim, uint32 pdamage, WeaponAttackType
     // ..done (base at attack power for marked target and base at attack power for creature type)
     int32 APbonus = 0;
 
+    // the target's attack power bonus (Hunter's Mark) takes the attack power multiplier like any other attack power
+    // (Rawr.Hunter CalculationsHunter.cs:2954-2957)
     if (attType == RANGED_ATTACK)
     {
-        APbonus += victim->GetTotalAuraModifier(SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS);
+        APbonus += int32(victim->GetTotalAuraModifier(SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS) *
+            (1.0f + GetFloatValue(UNIT_FIELD_RANGED_ATTACK_POWER_MULTIPLIER)));
 
         // ..done (base at attack power and creature type)
         APbonus += GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_RANGED_ATTACK_POWER_VERSUS, creatureTypeMask);
     }
     else
     {
-        APbonus += victim->GetTotalAuraModifier(SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS);
+        APbonus += int32(victim->GetTotalAuraModifier(SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS) *
+            (1.0f + GetFloatValue(UNIT_FIELD_ATTACK_POWER_MULTIPLIER)));
 
         // ..done (base at attack power and creature type)
         APbonus += GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS, creatureTypeMask);
