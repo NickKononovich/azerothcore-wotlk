@@ -1311,11 +1311,12 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
                             if (!pInfo)
                                 SetCreateHealth(30 + 30 * petlevel);
 
-                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 2.5f - petlevel));
-                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 2.5f + petlevel));
+                            // Rawr 2.3.23 MoonkinSolver.cs:632-645 (3.3.5a): 398.8 base DPS at a 1.7 s swing,
+                            // 642 base AP (331 str), Brambles +5% damage dealt per point
+                            SetAttackTime(BASE_ATTACK, 1700);
+                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, 398.8f * 1.7f - float(petlevel));
+                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, 398.8f * 1.7f + float(petlevel));
 
-                            // Rawr 2.3.23 MoonkinSolver.cs:632-645 (3.3.5a): 642 base AP (331 str),
-                            // Brambles +5% damage dealt per point
                             SetCreateStat(STAT_STRENGTH, 331.0f);
                             SetCreateStat(STAT_AGILITY, 113.0f);
                             if (AuraEffect const* brambles =
@@ -1346,8 +1347,13 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
                         }
                     case NPC_FERAL_SPIRIT:
                         {
-                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(petlevel * 4.0f - petlevel));
-                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(petlevel * 4.0f + petlevel));
+                            // Rawr.Enhance CalculationsEnhance.cs:543-557: 206.17 base DPS at a 1.5 s swing, 331 str /
+                            // 113 agi base (2 x str - 20 AP)
+                            SetAttackTime(BASE_ATTACK, 1500);
+                            SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, 206.17f * 1.5f - float(petlevel));
+                            SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, 206.17f * 1.5f + float(petlevel));
+                            SetCreateStat(STAT_STRENGTH, 331.0f);
+                            SetCreateStat(STAT_AGILITY, 113.0f);
 
                             AddAura(SPELL_PET_AVOIDANCE, this);
                             AddAura(SPELL_FERAL_SPIRIT_SPIRIT_HUNT, this);

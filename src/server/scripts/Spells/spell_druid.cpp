@@ -398,11 +398,12 @@ class spell_dru_treant_scaling : public AuraScript
 
     void CalculateAPAmount(AuraEffect const*  /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
     {
-        // xinef: treant inherits 105% of SP as AP; Brambles is a damage multiplier (Guardian::InitStatsForLevel)
+        // Rawr.Moonkin MoonkinSolver.cs:634-635: treant gains 57% of the owner's spell power as AP;
+        // Brambles is a damage multiplier (Guardian::InitStatsForLevel)
         if (Unit* owner = GetUnitOwner()->GetOwner())
         {
             int32 nature = owner->SpellBaseDamageBonusDone(SPELL_SCHOOL_MASK_NATURE);
-            amount = CalculatePct(std::max<int32>(0, nature), 105);
+            amount = CalculatePct(std::max<int32>(0, nature), 57);
         }
     }
 

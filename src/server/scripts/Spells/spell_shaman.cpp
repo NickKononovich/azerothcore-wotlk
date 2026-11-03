@@ -231,10 +231,10 @@ class spell_sha_feral_spirit_scaling : public AuraScript
 
     void CalculateAPAmount(AuraEffect const*  /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
     {
-        // xinef: by default feral spirit inherits 30% of AP
+        // Rawr.Enhance CalculationsEnhance.cs:553: feral spirit inherits 31% of the owner's AP (+30% Glyph of Feral Spirit)
         if (Unit* owner = GetUnitOwner()->GetOwner())
         {
-            int32 modifier = 30;
+            int32 modifier = 31;
             if (AuraEffect const* gofsEff = owner->GetAuraEffect(SPELL_SHAMAN_GLYPH_OF_FERAL_SPIRIT, EFFECT_0))
                 modifier += gofsEff->GetAmount();
 
