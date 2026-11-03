@@ -5557,7 +5557,15 @@ void Spell::TakePower()
         return;
     }
 
+    // A missed, dodged or parried rage / energy ability refunds 80 % of its cost; a finishing move refunds nothing
+    // but what SPELLMOD_SPELL_COST_REFUND_ON_FAIL (Quick Recovery, Primal Precision) took off m_powerCost above
+    // (Rawr.Bear CalculationsBear.cs:641-657: an avoided Maul / Mangle / Swipe / Lacerate costs 0.2 x its cost;
+    // wowsims Refund 0.8 on every rage / energy builder, 0.4 x talent on finishers)
     if (hit)
+        unitCaster->ModifyPower(PowerType, -m_powerCost);
+    else if ((PowerType == POWER_RAGE || PowerType == POWER_ENERGY) && !m_spellInfo->NeedsComboPoints())
+        unitCaster->ModifyPower(PowerType, -int32(m_powerCost * 0.2f));
+    else if (PowerType == POWER_RAGE || PowerType == POWER_ENERGY)
         unitCaster->ModifyPower(PowerType, -m_powerCost);
     else
         unitCaster->ModifyPower(PowerType, -irand(0, m_powerCost / 4));
