@@ -17031,7 +17031,10 @@ bool Unit::CanRestoreMana(SpellInfo const* spellInfo) const
         case 68285: // Improved Leader of the Pack
             return true;
         case 54428: // Divine Plea - only with talent Guarded by the Light
-            return HasSpell(53583);
+            // [core650] either rank (Talent.dbc 2194: 53583 / 53585), read by its passive aura: a passive talent is
+            // in the talent map only (Player::_addTalentAurasAndSpells casts it), never in m_spells - HasSpell(53583)
+            // was false for every paladin
+            return HasAura(53583) || HasAura(53585);
         default:
             break;
     }
