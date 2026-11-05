@@ -1036,6 +1036,33 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->Effects[EFFECT_1].SpellClassMask[0] |= 2; // add corruption to affected spells
     });
 
+    // [core671] Improved Imp scales the whole Firebolt (spell power part included), additive with Empowered Imp and
+    // Glyph of Imp: Rawr 2.3.23 Rawr.Warlock Pets.cs:497-503 (SpecialModifiers.AddAdditiveMultiplier(.1 *
+    // ImprovedImp), .1 * EmpoweredImp, .2 glyph). The DBC effect is SPELLMOD_ALL_EFFECTS on Firebolt, Fire Shield and
+    // Blood Pact: it raised only Firebolt's base points. Firebolt leaves that effect and gets its own percent damage
+    // modifier of the same value (SPELLMOD_DAMAGE percent mods sum: 1 + .3 + .3 + .2).
+    ApplySpellFix({ 18694, 18695, 18696 }, [](SpellInfo* spellInfo)
+    {
+        SpellEffectInfo& allEffects = spellInfo->Effects[EFFECT_0];
+        SpellEffectInfo& damage = spellInfo->Effects[EFFECT_1];
+        allEffects.SpellClassMask[0] &= ~0x00001000u; // Firebolt
+        damage.Effect = SPELL_EFFECT_APPLY_AURA;
+        damage.ApplyAuraName = SPELL_AURA_ADD_PCT_MODIFIER;
+        damage.MiscValue = SPELLMOD_DAMAGE;
+        damage.BasePoints = allEffects.BasePoints;
+        damage.DieSides = allEffects.DieSides;
+        damage.TargetA = allEffects.TargetA;
+        damage.SpellClassMask = flag96(0x00001000, 0x00000000, 0x00000000);
+    });
+
+    // [core672] Firebolt (Rank 9) 213-239 at level 80 per Rawr 2.3.23 Rawr.Warlock Pets.cs:477
+    // (SpecialBaseDamage = (213 + 239) / 2); the DBC gave 203-227 (199-223 + 2 a level over 78).
+    ApplySpellFix({ 47964 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0].BasePoints = 208;
+        spellInfo->Effects[EFFECT_0].DieSides = 27;
+    });
+
     // Death's Embrace
     ApplySpellFix({ 47198, 47199, 47200 }, [](SpellInfo* spellInfo)
     {
