@@ -6840,6 +6840,9 @@ void AuraEffect::HandleObsModPowerAuraTick(Unit* target, Unit* caster) const
     target->SendPeriodicAuraLog(&pInfo);
 
     int32 gain = target->ModifyPower(PowerType, amount);
+    // [core660] a percent-of-max power tick (Divine Plea, Evocation) is a power gain like a periodic energize's
+    if (gain > 0)
+        sScriptMgr->OnPowerGain(target, PowerType, gain, POWER_GAIN_SOURCE_SPELL, GetId());
 
     if (caster)
         target->GetThreatMgr().ForwardThreatForAssistingMe(caster, float(gain) * 0.5f, GetSpellInfo(), true);
