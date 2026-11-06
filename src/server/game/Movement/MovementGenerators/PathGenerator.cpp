@@ -650,6 +650,26 @@ void PathGenerator::BuildPointPath(float const* startPoint, float const* endPoin
             pathPoints,         // [out] path corner points
             (int*)&pointCount,
             _pointPathLimit);    // maximum number of points
+
+        // [core690] the smooth walk can fail on a valid corridor: its 4 yd step overshoots a corner nearer than one
+        // step and ping-pongs between the polys around it until the buffer is full, or no steer point lies past
+        // SMOOTH_PATH_SLOP (end within 0.3 yd on another poly, start on a vertex) and it returns the start alone.
+        // A creature yards off its victim then got SHORTCUT|NOPATH (core680 type 10). The string-pulled corridor
+        // is the walkable path itself, so it is used instead (not for slope-checked paths: fleeing keeps its checks)
+        if ((pointCount < 2 || dtStatusFailed(dtResult)) && !_slopeCheck &&
+            !(_polyLength == 1 && pointCount == 1))
+        {
+            dtResult = _navMeshQuery->findStraightPath(
+                startPoint,         // start position
+                endPoint,           // end position
+                _pathPolyRefs,     // current path
+                _polyLength,       // lenth of current path
+                pathPoints,         // [out] path corner points
+                nullptr,               // [out] flags
+                nullptr,               // [out] shortened path
+                (int*)&pointCount,
+                _pointPathLimit);   // maximum number of points/polygons to use
+        }
     }
 
     // Special case with start and end positions very close to each other
