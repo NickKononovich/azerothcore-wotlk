@@ -795,7 +795,8 @@ void PathGenerator::CreateFilter()
     // NavTerrain, so NAV_WATER doubles as the water area index. Real players and creatures assign no cost.
     if (isHeadless)
     {
-        _filter.setAreaCost(NAV_WATER, 20.0f);
+        // SYNC-20261106: upstream lowered the water cost 20 -> 5 (51feb03bb); our steep-ground cost 20 kept.
+        _filter.setAreaCost(NAV_WATER, 5.0f);
         _filter.setAreaCost(NAV_GROUND_STEEP, 20.0f);
     }
 
