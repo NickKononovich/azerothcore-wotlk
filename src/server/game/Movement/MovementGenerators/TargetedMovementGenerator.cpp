@@ -174,10 +174,22 @@ bool ChaseMovementGenerator<T>::DispatchSplineToPosition(T* owner, float x, floa
         _fallbackPositioning = false;
         if (cOwner)
         {
-            cOwner->SetCannotReachTarget(GetTarget()->GetGUID());
-
-            if (cOwner->IsPet() || cOwner->IsControlledByPlayer())
-                cOwner->AttackStop();
+            bool const playerControlled = cOwner->IsPet() || cOwner->IsControlledByPlayer();
+            // [core680] a creature that already stands in melee reach of its victim and sees it can hit it: a path
+            // query failing on the last yards (b273 rfc-h 5G-23: a Searing Blade Cultist 2.6 yd off its tank, on the
+            // ground/steep seam, evaded every hit for 180 s) does not make the victim unreachable
+            if (!playerControlled && owner->IsWithinMeleeRange(GetTarget()) && owner->IsWithinLOSInMap(GetTarget()))
+            {
+                LOG_WARN("movement", "core680: chase path of {} to {} failed in melee reach with sight (type {}), kept reachable",
+                    cOwner->GetGUID().ToString(), GetTarget()->GetGUID().ToString(), uint32(i_path->GetPathType()));
+                cOwner->SetCannotReachTarget();
+            }
+            else
+            {
+                cOwner->SetCannotReachTarget(GetTarget()->GetGUID());
+                if (playerControlled)
+                    cOwner->AttackStop();
+            }
         }
 
         owner->StopMoving();
@@ -330,7 +342,9 @@ bool ChaseMovementGenerator<T>::DoUpdate(T* owner, uint32 time_diff)
         if (owner->HasUnitState(UNIT_STATE_CHASE_MOVE) || !PositionOkay(owner, target, maxTarget, angle))
         {
             // can we get to the target?
-            if (cOwner && !target->isInAccessiblePlaceFor(cOwner))
+            // [core680] a victim already in melee reach and in sight is reachable whatever the place test says
+            if (cOwner && !target->isInAccessiblePlaceFor(cOwner) &&
+                !(!cOwner->IsPet() && owner->IsWithinMeleeRange(target) && owner->IsWithinLOSInMap(target)))
             {
                 cOwner->SetCannotReachTarget(target->GetGUID());
                 cOwner->StopMoving();
