@@ -336,11 +336,37 @@ class spell_rog_killing_spree_aura : public AuraScript
                     continue;
                 }
 
-                GetTarget()->CastSpell(target, SPELL_ROGUE_KILLING_SPREE_TELEPORT, true);
+                Unit* rogue = GetTarget();
+                Player* player = rogue->ToPlayer();
 
-                // xinef: ensure fast coordinates switch, dont wait for client to send opcode
-                WorldLocation const& dest = GetTarget()->ToPlayer()->GetTeleportDest();
-                GetTarget()->ToPlayer()->UpdatePosition(dest, true);
+                // [core700] GetTeleportDest() keeps the destination of the LAST teleport the player made. When the
+                // teleport cast does not go through (the point behind the target fails the cast's own checks, e.g.
+                // the dest line of sight), the old code still moved the rogue to that stale point: in RFC it put the
+                // rogue back where an earlier pull's Killing Spree had ended, 122 yd away and a level lower, and
+                // every later hop then failed out of range. Use the destination only when this hop set it.
+                WorldLocation const before = player ? player->GetTeleportDest() : WorldLocation();
+                SpellCastResult result = rogue->CastSpell(target, SPELL_ROGUE_KILLING_SPREE_TELEPORT, true);
+
+                if (player)
+                {
+                    // [core700] The point behind the target was not usable: land on the target's own side that faces
+                    // the rogue instead, at melee contact on the target's ground. GetNearPoint keeps the point on the
+                    // floor and in the target's line of sight; the rogue had line of sight to the target, as the
+                    // Killing Spree target search requires.
+                    if (result != SPELL_CAST_OK || player->GetTeleportDest() == before)
+                    {
+                        float x, y, z;
+                        target->GetNearPoint(rogue, x, y, z, rogue->GetObjectSize(), 0.0f, target->GetAngle(rogue));
+                        if (rogue->IsWithinLOS(x, y, z))
+                            rogue->NearTeleportTo(x, y, z, rogue->GetAngle(target), true);
+                    }
+
+                    // xinef: ensure fast coordinates switch, dont wait for client to send opcode
+                    // [core700] only for a teleport made in this hop, never a stale destination
+                    WorldLocation const& dest = player->GetTeleportDest();
+                    if (dest != before && dest.GetMapId() == rogue->GetMapId())
+                        player->UpdatePosition(dest, true);
+                }
 
                 GetTarget()->CastSpell(target, SPELL_ROGUE_KILLING_SPREE_WEAPON_DMG, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_DONT_REPORT_CAST_ERROR));
                 break;
