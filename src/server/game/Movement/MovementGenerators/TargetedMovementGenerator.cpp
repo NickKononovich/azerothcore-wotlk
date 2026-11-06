@@ -180,7 +180,7 @@ bool ChaseMovementGenerator<T>::DispatchSplineToPosition(T* owner, float x, floa
             // ground/steep seam, evaded every hit for 180 s) does not make the victim unreachable
             if (!playerControlled && owner->IsWithinMeleeRange(GetTarget()) && owner->IsWithinLOSInMap(GetTarget()))
             {
-                LOG_WARN("movement", "core680: chase path of {} to {} failed in melee reach with sight (type {}), kept reachable",
+                LOG_ERROR("movement", "core680: chase path of {} to {} failed in melee reach with sight (type {}), kept reachable",
                     cOwner->GetGUID().ToString(), GetTarget()->GetGUID().ToString(), uint32(i_path->GetPathType()));
                 cOwner->SetCannotReachTarget();
             }
