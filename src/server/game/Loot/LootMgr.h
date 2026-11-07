@@ -23,6 +23,7 @@
 #include "ObjectGuid.h"
 #include "RefMgr.h"
 #include "SharedDefines.h"
+#include <functional>
 #include <list>
 #include <map>
 #include <unordered_map>
@@ -231,6 +232,8 @@ public:
     [[nodiscard]] char const* GetName() const { return m_name; }
     [[nodiscard]] char const* GetEntryName() const { return m_entryName; }
     [[nodiscard]] bool IsRatesAllowed() const { return m_ratesAllowed; }
+    // [guild50] read-only walk over every loaded template (playerbots upgrade index, built once at startup)
+    [[nodiscard]] LootTemplateMap const& GetTemplates() const { return m_LootTemplates; }
 protected:
     uint32 LoadLootTable();
     void Clear();
@@ -267,6 +270,10 @@ public:
     void CheckLootRefs(LootStore const& lootstore, uint32 Id, LootIdSet* ref_set) const;
     bool addConditionItem(Condition* cond);
     [[nodiscard]] bool isReference(uint32 id) const;
+
+    // [guild50] read-only walk over every entry: ungrouped entries with their own chance, grouped ones with the chance
+    // they get in their group (explicit, or the equal share of what the explicit ones leave, as LootGroup::Roll)
+    void VisitEntries(std::function<void(LootStoreItem const& item, float chance)> const& visit) const;
 
 private:
     LootStoreItemList Entries;                          // not grouped only

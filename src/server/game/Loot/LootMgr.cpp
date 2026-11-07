@@ -2317,3 +2317,24 @@ void LoadLootTemplates_Reference()
     LOG_INFO("server.loading", ">> Loaded reference loot templates in {} ms", GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
+
+// [guild50] read-only walk for the playerbots upgrade index
+void LootTemplate::VisitEntries(std::function<void(LootStoreItem const& item, float chance)> const& visit) const
+{
+    for (LootStoreItem const* item : Entries)
+        visit(*item, item->chance);
+    for (LootGroup const* group : Groups)
+    {
+        if (!group)
+            continue;
+        LootGroup* g = const_cast<LootGroup*>(group);
+        for (LootStoreItem const* item : *g->GetExplicitlyChancedItemList())
+            visit(*item, item->chance);
+        LootStoreItemList const& equal = *g->GetEqualChancedItemList();
+        if (equal.empty())
+            continue;
+        float const share = std::max(0.0f, 100.0f - group->RawTotalChance()) / float(equal.size());
+        for (LootStoreItem const* item : equal)
+            visit(*item, share);
+    }
+}
