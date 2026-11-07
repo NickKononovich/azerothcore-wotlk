@@ -792,6 +792,10 @@ public:
     uint32 GetRankRights(uint8 rankId) const;
     bool MemberHasTabRights(ObjectGuid guid, uint8 tabId, uint32 rights) const;
 
+    // [guild30] read-only bank access for the playerbots guild coordinator (tab count, items)
+    [[nodiscard]] uint8 GetPurchasedTabsSize() const { return _GetPurchasedTabsSize(); }
+    [[nodiscard]] Item* GetBankItem(uint8 tabId, uint8 slotId) const { return _GetItem(tabId, slotId); }
+
 protected:
     uint32 m_id;
     std::string m_name;
