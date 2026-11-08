@@ -78,6 +78,11 @@ void PetitionMgr::LoadSignatures()
 {
     uint32 oldMSTime = getMSTime();
     SignatureStore.clear();
+    // every loaded petition has its (possibly empty) signature list, as AddPetition gives a new one: without it a
+    // charter bought before a restart and not signed yet could never be signed (HandlePetitionSignOpcode returns on
+    // a missing list)
+    for (auto const& [petitionGuid, petition] : PetitionStore)
+        SignatureStore[petitionGuid].petitionGuid = petitionGuid;
 
     QueryResult result = CharacterDatabase.Query("SELECT petition_id, playerguid, player_account FROM petition_sign");
     if (!result)
