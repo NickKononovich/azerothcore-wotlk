@@ -289,7 +289,8 @@ public:
         instance_icecrown_citadel_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
         {
             // pussywizard:
-            IsBuffAvailable = true;
+            // [ladder_v3] no Hellscream's Warsong / Strength of Wrynn in 10H / 25H (UPGRADE_PLAN §12.3)
+            IsBuffAvailable = !map->IsHeroic();
             WeeklyQuestId10 = 0;
             PutricideEventProgress = 0;
             LichKingHeroicAvailable = true;
@@ -2022,6 +2023,8 @@ public:
             data >> LichKingHeroicAvailable;
             data >> BloodPrinceTrashCount;
             data >> IsBuffAvailable;
+            if (instance->IsHeroic()) // [ladder_v3] buff off in heroic, also for saves made before the change
+                IsBuffAvailable = false;
             data >> IsSindragosaIntroDone;
             SetData(DATA_BUFF_AVAILABLE, IsBuffAvailable);
         }

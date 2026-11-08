@@ -424,6 +424,11 @@ struct ScriptedAI : public CreatureAI
                 return normal10;
             case RAID_DIFFICULTY_25MAN_NORMAL:
                 return normal25;
+            // [ladder_v3] 10H / 25H take the value of their size (Ulduar-10H, ToC / ICC 10H)
+            case RAID_DIFFICULTY_10MAN_HEROIC:
+                return normal10;
+            case RAID_DIFFICULTY_25MAN_HEROIC:
+                return normal25;
             default:
                 break;
         }
