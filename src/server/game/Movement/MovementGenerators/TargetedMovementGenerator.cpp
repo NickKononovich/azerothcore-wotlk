@@ -290,6 +290,20 @@ bool ChaseMovementGenerator<T>::DoUpdate(T* owner, uint32 time_diff)
     {
         i_recheckDistance.Reset(400); // Sniffed value
 
+        // [core680b] CannotReachTarget is only cleared by a new chase spline, its end, or a PositionOkay stop that
+        // needs i_recalculateTravel. A victim that walks up to the mob after a failed path query (or after the place
+        // test failed) leaves PositionOkay true, so no new path is ever asked and the flag stays until the 10 s evade
+        // timer sends the mob home, every hit on it evading meanwhile. A victim in melee reach and in sight is
+        // reachable (the core680 rule), so the stale flag is dropped here; pets and charmed units keep the old rule.
+        if (cOwner && !cOwner->IsPet() && !cOwner->IsControlledByPlayer() &&
+            cOwner->GetCannotReachTarget() == target->GetGUID() &&
+            owner->IsWithinMeleeRange(target) && owner->IsWithinLOSInMap(target))
+        {
+            LOG_ERROR("movement", "core680b: {} stale CannotReachTarget on {} cleared, victim in melee reach with sight",
+                cOwner->GetGUID().ToString(), target->GetGUID().ToString());
+            cOwner->SetCannotReachTarget();
+        }
+
         if (m_currentMode != CHASE_MODE_DISTANCING)
         {
             if (i_recalculateTravel && PositionOkay(owner, target, _movingTowards ? maxTarget : Optional<float>(), angle))

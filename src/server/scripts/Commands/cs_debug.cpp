@@ -40,6 +40,8 @@
 #include "RBAC.h"
 #include "RaceMgr.h"
 #include "ScriptMgr.h"
+#include "Spell.h"
+#include "SpellInfo.h"
 #include "Transport.h"
 #include "Warden.h"
 #include <algorithm>
@@ -111,6 +113,7 @@ public:
             { "los",            HandleDebugLoSCommand,                 rbac::RBAC_PERM_COMMAND_DEBUG_INFO,     Console::No },
             { "moveflags",      HandleDebugMoveflagsCommand,           rbac::RBAC_PERM_COMMAND_DEBUG,          Console::No },
             { "unitstate",      HandleDebugUnitStateCommand,           rbac::RBAC_PERM_COMMAND_DEBUG,          Console::No },
+            { "attackstate",    HandleDebugAttackStateCommand,         rbac::RBAC_PERM_COMMAND_DEBUG_INFO,     Console::No },
             { "objectcount",    HandleDebugObjectCountCommand,         rbac::RBAC_PERM_COMMAND_DEBUG_INFO,     Console::Yes},
             { "dummy",          HandleDebugDummyCommand,               rbac::RBAC_PERM_COMMAND_DEBUG,          Console::No },
             { "mapdata",        HandleDebugMapDataCommand,             rbac::RBAC_PERM_COMMAND_DEBUG_INFO,     Console::No },
@@ -987,6 +990,44 @@ public:
                 }
             }
         }
+
+        return true;
+    }
+
+    // [core680b] read-only: every silent melee gate of Unit::Attack / Player::Update / Unit::AttackerStateUpdate,
+    // for the selected unit (or self) and its victim
+    static bool HandleDebugAttackStateCommand(ChatHandler* handler)
+    {
+        Unit* me = handler->getSelectedUnit();
+        if (!me)
+            me = handler->GetPlayer();
+
+        uint32 const state = me->GetUnitState();
+        handler->PSendSysMessage("{}: unitState 0x{:08X} MELEE_ATTACKING {} CASTING {} CHARGING {} LOST_CONTROL {} | pacified {} mounted {} | combat {} engaged {}",
+            me->GetName(), state, me->HasUnitState(UNIT_STATE_MELEE_ATTACKING), me->HasUnitState(UNIT_STATE_CASTING),
+            me->HasUnitState(UNIT_STATE_CHARGING), me->HasUnitState(UNIT_STATE_LOST_CONTROL),
+            me->HasUnitFlag(UNIT_FLAG_PACIFIED), me->IsMounted(), me->IsInCombat(), me->IsEngaged());
+        handler->PSendSysMessage("  actionPreventedByCasting {} | attack timers main {} off {} ranged {}",
+            me->IsActionPreventedByCasting(), me->getAttackTimer(BASE_ATTACK), me->getAttackTimer(OFF_ATTACK), me->getAttackTimer(RANGED_ATTACK));
+
+        static char const* const slotNames[CURRENT_MAX_SPELL] = { "melee", "generic", "channeled", "autorepeat" };
+        for (uint8 slot = 0; slot < CURRENT_MAX_SPELL; ++slot)
+            if (Spell* spell = me->GetCurrentSpell(CurrentSpellTypes(slot)))
+                handler->PSendSysMessage("  current {} spell {} state {}", slotNames[slot], spell->GetSpellInfo()->Id, spell->getState());
+
+        if (Unit* victim = me->GetVictim())
+        {
+            handler->PSendSysMessage("  victim {} ({}) dist {:.2f} meleeReach {} LoS {} alive {}", victim->GetName(), victim->GetGUID().ToString(),
+                me->GetExactDist(victim), me->IsWithinMeleeRange(victim), me->IsWithinLOSInMap(victim), victim->IsAlive());
+            if (Creature* c = victim->ToCreature())
+                handler->PSendSysMessage("  victim evadeMode {} cannotReach {} ({}) evadeRegen {}", c->IsInEvadeMode(), c->CanNotReachTarget(),
+                    c->GetCannotReachTarget().ToString(), c->IsNotReachableAndNeedRegen());
+        }
+        else
+            handler->PSendSysMessage("  no victim (m_attacking null)");
+
+        if (Creature* c = me->ToCreature())
+            handler->PSendSysMessage("  self evadeMode {} cannotReach {} ({})", c->IsInEvadeMode(), c->CanNotReachTarget(), c->GetCannotReachTarget().ToString());
 
         return true;
     }
