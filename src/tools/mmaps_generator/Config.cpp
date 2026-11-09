@@ -142,6 +142,11 @@ namespace MMAP
         config.vertexPerTileEdge = vertexPerTile;
         config.baseUnitDim = ComputeBaseUnitDim(vertexPerMap);
         config.tilesPerMapEdge = vertexPerMap / vertexPerTile;
+        config.subTilesPerGridEdge = resolveInt(
+            [](TileOverride const*) { return std::optional<int>{}; },
+            [](MapOverride const* m) { return m->subTilesPerGridEdge; },
+            _global.subTilesPerGridEdge
+        );
         config.maxSimplificationError = resolveFloat(
             [](TileOverride const* t) { return t->maxSimplificationError; },
             [](MapOverride const* m) { return m->maxSimplificationError; },
@@ -217,6 +222,7 @@ namespace MMAP
         tryInt(mmapsNode, "walkableRadius", _global.walkableRadius);
         tryInt(mmapsNode, "verticesPerMapEdge", _global.vertexPerMapEdge);
         tryInt(mmapsNode, "verticesPerTileEdge", _global.vertexPerTileEdge);
+        tryInt(mmapsNode, "subTilesPerGridEdge", _global.subTilesPerGridEdge);
         tryFloat(mmapsNode, "maxSimplificationError", _global.maxSimplificationError);
 
         // Map overrides
@@ -242,6 +248,8 @@ namespace MMAP
                     override.vertexPerMapEdge = mapNode["verticesPerMapEdge"].get_value<int>();
                 if (mapNode.contains("verticesPerTileEdge"))
                     override.vertexPerTileEdge = mapNode["verticesPerTileEdge"].get_value<int>();
+                if (mapNode.contains("subTilesPerGridEdge"))
+                    override.subTilesPerGridEdge = mapNode["subTilesPerGridEdge"].get_value<int>();
                 if (mapNode.contains("cellSizeHorizontal"))
                     override.cellSizeHorizontal = mapNode["cellSizeHorizontal"].get_value<float>();
                 if (mapNode.contains("cellSizeVertical"))

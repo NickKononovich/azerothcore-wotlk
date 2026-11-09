@@ -26,7 +26,10 @@
 #define SIZE_OF_GRIDS            533.3333f
 
 #define MMAP_MAGIC 0x4d4d4150   // 'MMAP'
-#define MMAP_VERSION 20
+// 21: one .mmtile holds every Detour tile of its 533 yd grid (N x N sub-tiles, tileWidth = SIZE_OF_GRIDS / N in the
+//     .mmap params), each as uint32 dataSize + dtCreateNavMeshData blob, so the 16-bit Detour limits (65535 verts,
+//     32767 polys per tile) apply per sub-tile instead of per grid
+#define MMAP_VERSION 21
 
 struct MmapTileRecastConfig
 {
@@ -66,9 +69,10 @@ struct MmapTileHeader
     uint32 mmapMagic{MMAP_MAGIC};
     uint32 dtVersion;
     uint32 mmapVersion{MMAP_VERSION};
-    uint32 size{0};
+    uint32 size{0};                  // bytes after the header: tileCount x (uint32 dataSize, dataSize bytes)
     char usesLiquids{true};
-    char padding[3] {};
+    uint8 subTilesPerEdge{1};        // Detour tiles per grid edge (the map's tileWidth = SIZE_OF_GRIDS / subTilesPerEdge)
+    uint16 tileCount{0};             // Detour tiles stored (empty sub-tiles are not written)
 
     MmapTileRecastConfig recastConfig;
 
@@ -82,7 +86,8 @@ static_assert(sizeof(MmapTileHeader) == (sizeof(MmapTileHeader::mmapMagic) +
               sizeof(MmapTileHeader::mmapVersion) +
               sizeof(MmapTileHeader::size) +
               sizeof(MmapTileHeader::usesLiquids) +
-              sizeof(MmapTileHeader::padding)+
+              sizeof(MmapTileHeader::subTilesPerEdge) +
+              sizeof(MmapTileHeader::tileCount) +
               sizeof(MmapTileRecastConfig)), "MmapTileHeader has uninitialized padding fields");
 
 enum NavTerrain

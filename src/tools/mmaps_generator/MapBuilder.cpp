@@ -544,7 +544,17 @@ namespace MMAP
 
         int polyBits = DT_POLY_BITS;
 
-        int maxTiles = tiles->size();
+        // [mmtiles] N x N Detour tiles per grid (map level, mmaps-config.yaml subTilesPerGridEdge)
+        ResolvedMeshConfig const mapCfg = getConfig().GetConfigForTile(mapID, 0, 0);
+        int const subTiles = mapCfg.subTilesPerGridEdge;
+        if (subTiles < 1 || subTiles > 255 || mapCfg.tilesPerMapEdge % subTiles != 0)
+        {
+            printf("[Map %03i] [LIMIT] subTilesPerGridEdge %d must be 1..255 and divide tilesPerMapEdge %d!\n",
+                   mapID, subTiles, mapCfg.tilesPerMapEdge);
+            return;
+        }
+
+        int maxTiles = int(tiles->size()) * subTiles * subTiles;
         int maxPolysPerTile = 1 << polyBits;
 
         /***          calculate bounds of map         ***/
@@ -574,8 +584,8 @@ namespace MMAP
         // navmesh creation params
         dtNavMeshParams navMeshParams;
         memset(&navMeshParams, 0, sizeof(dtNavMeshParams));
-        navMeshParams.tileWidth = GRID_SIZE;
-        navMeshParams.tileHeight = GRID_SIZE;
+        navMeshParams.tileWidth = GRID_SIZE / subTiles;
+        navMeshParams.tileHeight = GRID_SIZE / subTiles;
         rcVcopy(navMeshParams.orig, bmin);
         navMeshParams.maxTiles = maxTiles;
         navMeshParams.maxPolys = maxPolysPerTile;
@@ -648,11 +658,6 @@ namespace MMAP
         rcConfig tileCfg = config;
         tileCfg.width = config.tileSize + config.borderSize * 2;
         tileCfg.height = config.tileSize + config.borderSize * 2;
-
-        // merge per tile poly and detail meshes
-        rcPolyMesh** pmmerge = new rcPolyMesh*[tilesPerMap * tilesPerMap];
-        rcPolyMeshDetail** dmmerge = new rcPolyMeshDetail*[tilesPerMap * tilesPerMap];
-        int nmerge = 0;
 
         // build all tiles
         for (int y = 0; y < tilesPerMap; ++y)
@@ -755,139 +760,192 @@ namespace MMAP
                 tile.chf = nullptr;
                 rcFreeContourSet(tile.cset);
                 tile.cset = nullptr;
-
-                pmmerge[nmerge] = tile.pmesh;
-                dmmerge[nmerge] = tile.dmesh;
-                nmerge++;
             }
         }
 
-        iv.polyMesh = rcAllocPolyMesh();
-        if (!iv.polyMesh)
+        // [mmtiles] one Detour tile per group of (tilesPerMap / subTiles)^2 Recast tiles. The Recast build is the same
+        // as for one tile per grid; rcMergePolyMeshes only concatenates (and joins polygons sharing vertices), so the
+        // polygons are the same, and it keeps the portal edges on the group's outer border, which Detour links to the
+        // neighbouring sub-tile (connectExtLinks) as it links neighbouring grids.
+        int const subTiles = cfg.subTilesPerGridEdge;
+        int const group = tilesPerMap / subTiles;
+        float const* orig = navMesh->getParams()->orig;
+        float const tileWidth = navMesh->getParams()->tileWidth;
+        float const recastTileWidth = float(config.tileSize * config.cs);
+
+        std::vector<rcPolyMesh*> pmmerge;
+        std::vector<rcPolyMeshDetail*> dmmerge;
+        pmmerge.reserve(group * group);
+        dmmerge.reserve(group * group);
+
+        std::vector<std::pair<unsigned char*, int>> navTiles;   // dtCreateNavMeshData output, freed by removeTile
+        std::vector<dtTileRef> tileRefs;
+        bool limitHit = false;
+
+        for (int sy = 0; sy < subTiles; ++sy)
         {
-            printf("%s alloc iv.polyMesh FAILED!\n", tileString);
-            delete[] pmmerge;
-            delete[] dmmerge;
-            delete[] tiles;
-            return;
+            for (int sx = 0; sx < subTiles; ++sx)
+            {
+                pmmerge.clear();
+                dmmerge.clear();
+                for (int y = sy * group; y < (sy + 1) * group; ++y)
+                {
+                    for (int x = sx * group; x < (sx + 1) * group; ++x)
+                    {
+                        Tile const& tile = tiles[x + y * tilesPerMap];
+                        if (tile.pmesh && tile.dmesh)
+                        {
+                            pmmerge.push_back(tile.pmesh);
+                            dmmerge.push_back(tile.dmesh);
+                        }
+                    }
+                }
+
+                if (pmmerge.empty())
+                    continue;
+
+                char subString[48];
+                snprintf(subString, sizeof(subString), "%s sub-tile %d,%d:", tileString, sx, sy);
+
+                rcPolyMesh* pmesh = rcAllocPolyMesh();
+                rcPolyMeshDetail* dmesh = rcAllocPolyMeshDetail();
+                if (!pmesh || !dmesh ||
+                    !rcMergePolyMeshes(m_rcContext, pmmerge.data(), int(pmmerge.size()), *pmesh) ||
+                    !rcMergePolyMeshDetails(m_rcContext, dmmerge.data(), int(dmmerge.size()), *dmesh))
+                {
+                    printf("%s [LIMIT] merging the Recast tiles FAILED!\n", subString);
+                    rcFreePolyMesh(pmesh);
+                    rcFreePolyMeshDetail(dmesh);
+                    limitHit = true;
+                    continue;
+                }
+
+                // set polygons as walkable
+                /// @todo: special flags for DYNAMIC polygons, ie surfaces that can be turned on and off
+                for (int i = 0; i < pmesh->npolys; ++i)
+                    if (pmesh->areas[i] & RC_WALKABLE_AREA)
+                        pmesh->flags[i] = pmesh->areas[i];
+
+                // sub-tile bounds, on the Recast tile edges
+                float sbmin[3], sbmax[3];
+                rcVcopy(sbmin, bmin);
+                rcVcopy(sbmax, bmax);
+                sbmin[0] = config.bmin[0] + (sx * group) * recastTileWidth;
+                sbmin[2] = config.bmin[2] + (sy * group) * recastTileWidth;
+                sbmax[0] = config.bmin[0] + ((sx + 1) * group) * recastTileWidth;
+                sbmax[2] = config.bmin[2] + ((sy + 1) * group) * recastTileWidth;
+                // the merged vertices are relative to the merged mesh's bmin (another corner only if the group's
+                // first Recast tile failed to build)
+                if (rcAbs(pmesh->bmin[0] - sbmin[0]) > config.cs * 0.5f || rcAbs(pmesh->bmin[2] - sbmin[2]) > config.cs * 0.5f)
+                {
+                    sbmin[0] = pmesh->bmin[0];
+                    sbmin[2] = pmesh->bmin[2];
+                }
+                sbmin[1] = pmesh->bmin[1];
+
+                // setup mesh parameters
+                dtNavMeshCreateParams params;
+                memset(&params, 0, sizeof(params));
+                params.verts = pmesh->verts;
+                params.vertCount = pmesh->nverts;
+                params.polys = pmesh->polys;
+                params.polyAreas = pmesh->areas;
+                params.polyFlags = pmesh->flags;
+                params.polyCount = pmesh->npolys;
+                params.nvp = pmesh->nvp;
+                params.detailMeshes = dmesh->meshes;
+                params.detailVerts = dmesh->verts;
+                params.detailVertsCount = dmesh->nverts;
+                params.detailTris = dmesh->tris;
+                params.detailTriCount = dmesh->ntris;
+
+                // all of the grid's connections: Detour stores each in the sub-tile holding its start point
+                params.offMeshConVerts = meshData.offMeshConnections.getCArray();
+                params.offMeshConCount = meshData.offMeshConnections.size() / 6;
+                params.offMeshConRad = meshData.offMeshConnectionRads.getCArray();
+                params.offMeshConDir = meshData.offMeshConnectionDirs.getCArray();
+                params.offMeshConAreas = meshData.offMeshConnectionsAreas.getCArray();
+                params.offMeshConFlags = meshData.offMeshConnectionsFlags.getCArray();
+
+                params.walkableHeight = baseUnitDim * config.walkableHeight;  // agent height
+                params.walkableRadius = baseUnitDim * config.walkableRadius;  // agent radius
+                params.walkableClimb = baseUnitDim * config.walkableClimb;    // keep less that walkableHeight (aka agent height)!
+                params.tileX = int(floorf((((sbmin[0] + sbmax[0]) / 2) - orig[0]) / tileWidth));
+                params.tileY = int(floorf((((sbmin[2] + sbmax[2]) / 2) - orig[2]) / tileWidth));
+                rcVcopy(params.bmin, sbmin);
+                rcVcopy(params.bmax, sbmax);
+                params.cs = config.cs;
+                params.ch = config.ch;
+                params.tileLayer = 0;
+                params.buildBvTree = true;
+
+                do
+                {
+                    // these values are checked within dtCreateNavMeshData - handle them here
+                    // so we have a clear error message
+                    if (params.nvp > DT_VERTS_PER_POLYGON)
+                    {
+                        printf("%s Invalid verts-per-polygon value!        \n", subString);
+                        break;
+                    }
+                    if (!params.vertCount || !params.verts || !params.polyCount || !params.polys)
+                        break;  // nothing walkable in this sub-tile: no Detour tile (the grid's others still load)
+                    if (params.vertCount >= 0xffff)
+                    {
+                        printf("%s [LIMIT] Too many vertices! %d out of %d!        \n", subString, params.vertCount, 0xffff);
+                        limitHit = true;
+                        break;
+                    }
+                    // dtPoly::neis stores an internal neighbour as index + 1 in 15 bits (0x8000 = DT_EXT_LINK)
+                    if (params.polyCount > 0x7fff)
+                    {
+                        printf("%s [LIMIT] Too many polygons! %d out of %d!        \n", subString, params.polyCount, 0x7fff);
+                        limitHit = true;
+                        break;
+                    }
+                    if (!params.detailMeshes || !params.detailVerts || !params.detailTris)
+                    {
+                        printf("%s No detail mesh to build tile!           \n", subString);
+                        break;
+                    }
+
+                    unsigned char* navData = nullptr;
+                    int navDataSize = 0;
+                    if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
+                    {
+                        printf("%s [LIMIT] Failed building navmesh tile!           \n", subString);
+                        limitHit = true;
+                        break;
+                    }
+
+                    // DT_TILE_FREE_DATA tells detour to unallocate memory when the tile
+                    // is removed via removeTile()
+                    dtTileRef tileRef = 0;
+                    dtStatus dtResult = navMesh->addTile(navData, navDataSize, DT_TILE_FREE_DATA, 0, &tileRef);
+                    if (!tileRef || dtResult != DT_SUCCESS)
+                    {
+                        printf("%s [LIMIT] Failed adding tile to navmesh!           \n", subString);
+                        dtFree(navData);
+                        limitHit = true;
+                        break;
+                    }
+
+                    printf("%s Detour tile [%d,%d]: %d polys, %d verts\n", subString, params.tileX, params.tileY,
+                           params.polyCount, params.vertCount);
+                    navTiles.emplace_back(navData, navDataSize);
+                    tileRefs.push_back(tileRef);
+                } while (false);
+
+                rcFreePolyMesh(pmesh);
+                rcFreePolyMeshDetail(dmesh);
+            }
         }
-        rcMergePolyMeshes(m_rcContext, pmmerge, nmerge, *iv.polyMesh);
 
-        iv.polyMeshDetail = rcAllocPolyMeshDetail();
-        if (!iv.polyMeshDetail)
+        if (limitHit)
+            printf("%s [LIMIT] some sub-tiles of this grid were not written!\n", tileString);
+
+        if (!navTiles.empty())
         {
-            printf("%s alloc m_dmesh FAILED!\n", tileString);
-            delete[] pmmerge;
-            delete[] dmmerge;
-            delete[] tiles;
-            return;
-        }
-        rcMergePolyMeshDetails(m_rcContext, dmmerge, nmerge, *iv.polyMeshDetail);
-
-        // free things up
-        delete[] pmmerge;
-        delete[] dmmerge;
-        delete[] tiles;
-
-        // set polygons as walkable
-        /// @todo: special flags for DYNAMIC polygons, ie surfaces that can be turned on and off
-        for (int i = 0; i < iv.polyMesh->npolys; ++i)
-            if (iv.polyMesh->areas[i] & RC_WALKABLE_AREA)
-                iv.polyMesh->flags[i] = iv.polyMesh->areas[i];
-
-        // setup mesh parameters
-        dtNavMeshCreateParams params;
-        memset(&params, 0, sizeof(params));
-        params.verts = iv.polyMesh->verts;
-        params.vertCount = iv.polyMesh->nverts;
-        params.polys = iv.polyMesh->polys;
-        params.polyAreas = iv.polyMesh->areas;
-        params.polyFlags = iv.polyMesh->flags;
-        params.polyCount = iv.polyMesh->npolys;
-        params.nvp = iv.polyMesh->nvp;
-        params.detailMeshes = iv.polyMeshDetail->meshes;
-        params.detailVerts = iv.polyMeshDetail->verts;
-        params.detailVertsCount = iv.polyMeshDetail->nverts;
-        params.detailTris = iv.polyMeshDetail->tris;
-        params.detailTriCount = iv.polyMeshDetail->ntris;
-
-        params.offMeshConVerts = meshData.offMeshConnections.getCArray();
-        params.offMeshConCount = meshData.offMeshConnections.size() / 6;
-        params.offMeshConRad = meshData.offMeshConnectionRads.getCArray();
-        params.offMeshConDir = meshData.offMeshConnectionDirs.getCArray();
-        params.offMeshConAreas = meshData.offMeshConnectionsAreas.getCArray();
-        params.offMeshConFlags = meshData.offMeshConnectionsFlags.getCArray();
-
-        params.walkableHeight = baseUnitDim * config.walkableHeight;  // agent height
-        params.walkableRadius = baseUnitDim * config.walkableRadius;  // agent radius
-        params.walkableClimb = baseUnitDim * config.walkableClimb;    // keep less that walkableHeight (aka agent height)!
-        params.tileX = (((bmin[0] + bmax[0]) / 2) - navMesh->getParams()->orig[0]) / GRID_SIZE;
-        params.tileY = (((bmin[2] + bmax[2]) / 2) - navMesh->getParams()->orig[2]) / GRID_SIZE;
-        rcVcopy(params.bmin, bmin);
-        rcVcopy(params.bmax, bmax);
-        params.cs = config.cs;
-        params.ch = config.ch;
-        params.tileLayer = 0;
-        params.buildBvTree = true;
-
-        // will hold final navmesh
-        unsigned char* navData = nullptr;
-        int navDataSize = 0;
-
-        do
-        {
-            // these values are checked within dtCreateNavMeshData - handle them here
-            // so we have a clear error message
-            if (params.nvp > DT_VERTS_PER_POLYGON)
-            {
-                printf("%s Invalid verts-per-polygon value!        \n", tileString);
-                break;
-            }
-            if (params.vertCount >= 0xffff)
-            {
-                printf("%s Too many vertices! %d out of %d!        \n", tileString, params.vertCount, 0xffff);
-                break;
-            }
-            if (!params.vertCount || !params.verts)
-            {
-                // occurs mostly when adjacent tiles have models
-                // loaded but those models don't span into this tile
-
-                // message is an annoyance
-                printf("%sNo vertices to build tile!              \n", tileString);
-                break;
-            }
-            if (!params.polyCount || !params.polys)
-            {
-                // we have flat tiles with no actual geometry - don't build those, its useless
-                // keep in mind that we do output those into debug info
-                printf("%s No polygons to build on tile!              \n", tileString);
-                break;
-            }
-            if (!params.detailMeshes || !params.detailVerts || !params.detailTris)
-            {
-                printf("%s No detail mesh to build tile!           \n", tileString);
-                break;
-            }
-
-            printf("%s Building navmesh tile...\n", tileString);
-            if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
-            {
-                printf("%s Failed building navmesh tile!           \n", tileString);
-                break;
-            }
-
-            dtTileRef tileRef = 0;
-            printf("%s Adding tile to navmesh...\n", tileString);
-            // DT_TILE_FREE_DATA tells detour to unallocate memory when the tile
-            // is removed via removeTile()
-            dtStatus dtResult = navMesh->addTile(navData, navDataSize, DT_TILE_FREE_DATA, 0, &tileRef);
-            if (!tileRef || dtResult != DT_SUCCESS)
-            {
-                printf("%s Failed adding tile to navmesh!           \n", tileString);
-                break;
-            }
-
             // file output
             const std::string fileName = Acore::StringFormat(
                 TILE_FILE_NAME_FORMAT,
@@ -901,28 +959,64 @@ namespace MMAP
                 char message[1024];
                 sprintf(message, "[Map %03i] Failed to open %s for writing!\n", mapID, fileName.c_str());
                 perror(message);
-                navMesh->removeTile(tileRef, nullptr, nullptr);
-                break;
             }
+            else
+            {
+                printf("%s Writing %u Detour tiles to file...\n", tileString, uint32(navTiles.size()));
 
-            printf("%s Writing to file...\n", tileString);
+                // write header
+                MmapTileHeader header;
+                header.usesLiquids = m_terrainBuilder->usesLiquids();
+                header.subTilesPerEdge = uint8(subTiles);
+                header.tileCount = uint16(navTiles.size());
+                header.size = 0;
+                for (auto const& navTile : navTiles)
+                    header.size += uint32(sizeof(uint32) + navTile.second);
+                header.recastConfig = cfg.toMMAPTileRecastConfig();
+                fwrite(&header, sizeof(MmapTileHeader), 1, file);
 
-            // write header
-            MmapTileHeader header;
-            header.usesLiquids = m_terrainBuilder->usesLiquids();
-            header.size = uint32(navDataSize);
-            header.recastConfig = cfg.toMMAPTileRecastConfig();
-            fwrite(&header, sizeof(MmapTileHeader), 1, file);
+                // write data: uint32 size + blob per Detour tile
+                for (auto const& navTile : navTiles)
+                {
+                    uint32 const navDataSize = uint32(navTile.second);
+                    fwrite(&navDataSize, sizeof(navDataSize), 1, file);
+                    fwrite(navTile.first, sizeof(unsigned char), navTile.second, file);
+                }
+                fclose(file);
+            }
+        }
+        else
+            printf("%s No polygons to build on tile!              \n", tileString);
 
-            // write data
-            fwrite(navData, sizeof(unsigned char), navDataSize, file);
-            fclose(file);
-
-            // now that tile is written to disk, we can unload it
+        // now that the tiles are written to disk, we can unload them (removeTile frees their data)
+        for (dtTileRef tileRef : tileRefs)
             navMesh->removeTile(tileRef, nullptr, nullptr);
-        } while (false);
 
         if (m_debugOutput)
+        {
+            // the whole grid as one mesh, for RecastDemo
+            pmmerge.clear();
+            dmmerge.clear();
+            for (int i = 0; i < tilesPerMap * tilesPerMap; ++i)
+            {
+                if (tiles[i].pmesh && tiles[i].dmesh)
+                {
+                    pmmerge.push_back(tiles[i].pmesh);
+                    dmmerge.push_back(tiles[i].dmesh);
+                }
+            }
+            iv.polyMesh = rcAllocPolyMesh();
+            iv.polyMeshDetail = rcAllocPolyMeshDetail();
+            if (iv.polyMesh && iv.polyMeshDetail)
+            {
+                rcMergePolyMeshes(m_rcContext, pmmerge.data(), int(pmmerge.size()), *iv.polyMesh);
+                rcMergePolyMeshDetails(m_rcContext, dmmerge.data(), int(dmmerge.size()), *iv.polyMeshDetail);
+            }
+        }
+
+        delete[] tiles;
+
+        if (m_debugOutput && iv.polyMesh)
         {
             // restore padding so that the debug visualization is correct
             for (int i = 0; i < iv.polyMesh->nverts; ++i)
@@ -1083,8 +1177,8 @@ namespace MMAP
         if (header.mmapVersion != MMAP_VERSION)
             return false;
 
-        const auto desiredRecastConfig = m_mapBuilder->getConfig().GetConfigForTile(mapID, tileX, tileY).toMMAPTileRecastConfig();
-        return header.recastConfig == desiredRecastConfig;
+        ResolvedMeshConfig const desired = m_mapBuilder->getConfig().GetConfigForTile(mapID, tileX, tileY);
+        return header.recastConfig == desired.toMMAPTileRecastConfig() && header.subTilesPerEdge == desired.subTilesPerGridEdge;
     }
 
     rcConfig MapBuilder::getRecastConfig(ResolvedMeshConfig const& cfg, float bmin[3], float bmax[3]) const

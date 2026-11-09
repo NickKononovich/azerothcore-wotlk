@@ -20,6 +20,8 @@
 #include "Errors.h"
 #include "Log.h"
 #include "MapDefines.h"
+#include <algorithm>
+#include <cmath>
 
 namespace MMAP
 {
@@ -93,31 +95,83 @@ namespace MMAP
             return false;
         }
 
-        unsigned char* data = (unsigned char*)dtAlloc(fileHeader.size, DT_ALLOC_PERM);
-        ASSERT(data);
-
-        std::size_t result = fread(data, fileHeader.size, 1, file);
-        if (!result)
+        if (!fileHeader.tileCount)
         {
-            LOG_ERROR("maps", "MMAP:loadMap: Bad header or data in mmap {:03}{:02}{:02}.mmtile", mapId, x, y);
+            LOG_ERROR("maps", "MMAP:loadMap: {:03}{:02}{:02}.mmtile holds no navmesh tile", mapId, x, y);
             fclose(file);
             return false;
         }
 
-        fclose(file);
-
-        dtTileRef tileRef = 0;
-
-        // memory allocated for data is now managed by detour, and will be deallocated when the tile is removed
-        if (dtStatusSucceed(navMesh->addTile(data, fileHeader.size, DT_TILE_FREE_DATA, 0, &tileRef)))
+        // the grid's Detour tiles, back to back: uint32 dataSize, then dataSize bytes of dtCreateNavMeshData output
+        bool allLoaded = true;
+        uint32 remaining = fileHeader.size;
+        for (uint16 i = 0; i < fileHeader.tileCount; ++i)
         {
-            dtMeshHeader* header = (dtMeshHeader*)data;
-            LOG_DEBUG("maps", "MMAP:loadMap: Loaded mmtile {:03}[{:02},{:02}] into {:03}[{:02},{:02}]", mapId, x, y, mapId, header->x, header->y);
-            return true;
+            uint32 dataSize = 0;
+            if (remaining < sizeof(dataSize) || fread(&dataSize, sizeof(dataSize), 1, file) != 1 || !dataSize ||
+                dataSize > remaining - sizeof(dataSize))
+            {
+                LOG_ERROR("maps", "MMAP:loadMap: Bad sub-tile {} size in mmap {:03}{:02}{:02}.mmtile", i, mapId, x, y);
+                allLoaded = false;
+                break;
+            }
+            remaining -= sizeof(dataSize) + dataSize;
+
+            unsigned char* data = (unsigned char*)dtAlloc(dataSize, DT_ALLOC_PERM);
+            ASSERT(data);
+
+            if (fread(data, dataSize, 1, file) != 1)
+            {
+                LOG_ERROR("maps", "MMAP:loadMap: Bad header or data in mmap {:03}{:02}{:02}.mmtile", mapId, x, y);
+                dtFree(data);
+                allLoaded = false;
+                break;
+            }
+
+            dtTileRef tileRef = 0;
+
+            // memory allocated for data is now managed by detour, and will be deallocated when the tile is removed
+            if (dtStatusSucceed(navMesh->addTile(data, dataSize, DT_TILE_FREE_DATA, 0, &tileRef)))
+            {
+                dtMeshHeader* header = (dtMeshHeader*)data;
+                LOG_DEBUG("maps", "MMAP:loadMap: Loaded mmtile {:03}[{:02},{:02}] into {:03}[{:02},{:02}]", mapId, x, y, mapId, header->x, header->y);
+                continue;
+            }
+
+            LOG_ERROR("maps", "MMAP:loadMap: Could not load {:03}{:02}{:02}.mmtile sub-tile {} into navmesh", mapId, x, y, i);
+            dtFree(data);
+            allLoaded = false;
         }
 
-        LOG_ERROR("maps", "MMAP:loadMap: Could not load {:03}{:02}{:02}.mmtile into navmesh", mapId, x, y);
-        dtFree(data);
+        fclose(file);
+        return allLoaded;
+    }
+
+    bool MMapMgr::HasGridTileAt(dtNavMesh const* navMesh, float const* pos)
+    {
+        int tx = -1, ty = -1;
+        navMesh->calcTileLoc(pos, &tx, &ty);
+
+        /// For some reason, often the tx and ty variables wont get a valid value
+        /// Use this check to prevent getting negative tile coords and crashing on getTileAt
+        if (tx < 0 || ty < 0)
+            return false;
+
+        if (navMesh->getTileAt(tx, ty, 0))
+            return true;
+
+        // the other sub-tiles of the same grid (the .mmap origin lies on a grid corner)
+        int const perGrid = std::max(1, int(std::lround(SIZE_OF_GRIDS / navMesh->getParams()->tileWidth)));
+        if (perGrid == 1)
+            return false;
+
+        int const gx = tx - tx % perGrid;
+        int const gy = ty - ty % perGrid;
+        for (int sy = gy; sy < gy + perGrid; ++sy)
+            for (int sx = gx; sx < gx + perGrid; ++sx)
+                if (navMesh->getTileAt(sx, sy, 0))
+                    return true;
+
         return false;
     }
 

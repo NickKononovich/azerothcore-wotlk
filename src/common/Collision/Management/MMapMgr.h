@@ -67,7 +67,11 @@ namespace MMAP
         ~MMapMgr() = default;
 
         static std::shared_ptr<dtNavMesh> LoadNavMesh(uint32 mapId);
+        // Adds every Detour tile of grid x,y (mmaps/MMMXXYY.mmtile holds the grid's N x N sub-tiles, MMAP_VERSION 21)
         static bool LoadTile(dtNavMesh* navMesh, uint32 mapId, int32 x, int32 y);
+        // True when the 533 yd grid holding the Detour position pos (y, z, x) has any tile loaded. A grid of N x N
+        // sub-tiles writes no tile for an empty sub-tile; a point there still belongs to a loaded grid.
+        static bool HasGridTileAt(dtNavMesh const* navMesh, float const* pos);
         static ManagedNavMeshQuery CreateNavMeshQuery(dtNavMesh* navMesh);
 
     private:

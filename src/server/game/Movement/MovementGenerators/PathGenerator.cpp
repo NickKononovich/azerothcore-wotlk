@@ -866,18 +866,11 @@ NavTerrain PathGenerator::GetNavTerrain(float x, float y, float z) const
 
 bool PathGenerator::HaveTile(G3D::Vector3 const& p) const
 {
-    int tx = -1, ty = -1;
     float point[VERTEX_SIZE] = { p.y, p.z, p.x };
 
-    _navMesh->calcTileLoc(point, &tx, &ty);
-
-    /// Workaround
-    /// For some reason, often the tx and ty variables wont get a valid value
-    /// Use this check to prevent getting negative tile coords and crashing on getTileAt
-    if (tx < 0 || ty < 0)
-        return false;
-
-    return (_navMesh->getTileAt(tx, ty, 0) != nullptr);
+    // [mmtiles] the grid's tile, not the Detour sub-tile: an empty sub-tile of a loaded grid has no tile, as an empty
+    // corner of a whole-grid tile had no polygons (findNearestPoly then searches the neighbouring sub-tiles)
+    return MMAP::MMapMgr::HasGridTileAt(_navMesh, point);
 }
 
 uint32 PathGenerator::FixupCorridor(dtPolyRef* path, uint32 npath, uint32 maxPath, dtPolyRef const* visited, uint32 nvisited)

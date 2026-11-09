@@ -82,6 +82,13 @@ mmapsConfig:
     # reducing runtime work to load, unload, and manage tiles.
     verticesPerTileEdge: 80
 
+    # Detour tiles per grid edge (map level; a map override may set it, a tile override may not).
+    # Each 533 yd grid file (.mmtile) holds N x N Detour tiles of 533/N yd: the grid's Recast tiles are merged in
+    # N x N groups instead of into one tile, so Detour's 16-bit limits (65535 vertices, 32767 polygons per tile) apply
+    # to each sub-tile and dense grids need no coarser maxSimplificationError. The polygons are the same as with 1.
+    # Must divide verticesPerMapEdge / verticesPerTileEdge (2000 / 80 = 25: 1, 5 or 25).
+    subTilesPerGridEdge: 5
+
     # Tolerance for how much a polygon can deviate from the original geometry when simplified.
     # Higher values produce simpler (faster) meshes but can reduce accuracy.
     maxSimplificationError: 0.8

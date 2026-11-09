@@ -53,6 +53,9 @@ namespace MMAP
         float cellSizeHorizontal;
         float cellSizeVertical;
         float maxSimplificationError;
+        // Detour tiles per grid edge (map level): the grid's Recast tiles are merged in N x N groups, one Detour tile
+        // each. Must divide tilesPerMapEdge.
+        int subTilesPerGridEdge;
 
         MmapTileRecastConfig toMMAPTileRecastConfig() const;
     };
@@ -98,6 +101,7 @@ namespace MMAP
             std::optional<int> walkableClimb;
             std::optional<int> vertexPerMapEdge;
             std::optional<int> vertexPerTileEdge;
+            std::optional<int> subTilesPerGridEdge;
             std::optional<float> maxSimplificationError;
 
             // The width/depth of each cell in the XZ-plane grid used for voxelization. [Units: world units]
@@ -141,6 +145,11 @@ namespace MMAP
             // A higher vertex count per tile means fewer total tiles,
             // reducing runtime work to load, unload, and manage tiles.
             int vertexPerTileEdge = 80;
+
+            // Detour tiles per grid edge. 1 = one Detour tile per 533 yd grid (as before MMAP_VERSION 21). N > 1 splits
+            // the grid into N x N Detour tiles of 533/N yd, so the 16-bit Detour limits (65535 verts, 32767 polys per
+            // tile) apply to each sub-tile. Must divide vertexPerMapEdge / vertexPerTileEdge. Map level only.
+            int subTilesPerGridEdge = 1;
 
             // Tolerance for how much a polygon can deviate from the original geometry when simplified.
             // Higher values produce simpler (faster) meshes but can reduce accuracy.
