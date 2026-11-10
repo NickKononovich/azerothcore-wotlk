@@ -252,6 +252,21 @@ dtPolyRef PathGenerator::GetPolyByLocation(float const* point, float* distance) 
         return polyRef;
     }
 
+    // [nav119] b421 rfc-n (five 13, the nav99 lines): a Ragefire Shaman and a Ragefire Trogg in the fight, chasing
+    // (motion 5) a victim 20 yd off, got NOPATH (type 8) from (-165.2,-10.9,-56.1): the nearest polygon lay 5.8 yd
+    // off (navmesh_probe: not inside any poly, 8 polys within 8 yd) - beyond the 3 yd box of both searches above, so
+    // no start polygon and no path; the mobs stood out of every reach and the fight dragged to a wipe (11 mobs
+    // engaged, 225 s). BuildPolyPath already takes a start or end up to FAR_FROM_POLY yd off its polygon (its
+    // "far from poly" line below): the last search reaches that far horizontally, and the path starts at that
+    // polygon (the unit steps onto the mesh first)
+    extents[0] = extents[2] = FAR_FROM_POLY;
+    extents[1] = 5.0f;
+    if (dtStatusSucceed(_navMeshQuery->findNearestPoly(point, extents, &_filter, &polyRef, closestPoint)) && polyRef != INVALID_POLYREF)
+    {
+        *distance = dtVdist(closestPoint, point);
+        return polyRef;
+    }
+
     *distance = FLT_MAX;
     return INVALID_POLYREF;
 }
@@ -296,8 +311,8 @@ void PathGenerator::BuildPolyPath(G3D::Vector3 const& startPos, G3D::Vector3 con
     }
 
     // we may need a better number here
-    bool startFarFromPoly = distToStartPoly > 7.0f;
-    bool endFarFromPoly = distToEndPoly > 7.0f;
+    bool startFarFromPoly = distToStartPoly > FAR_FROM_POLY;
+    bool endFarFromPoly = distToEndPoly > FAR_FROM_POLY;
 
     // create a shortcut if the path begins or end too far
     // away from the desired path points.

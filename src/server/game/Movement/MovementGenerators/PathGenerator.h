@@ -44,6 +44,9 @@ class WorldObject;
 #endif
 
 #define SMOOTH_PATH_STEP_SIZE   4.0f
+// [nav119] how far off its polygon a path may start or end (BuildPolyPath: "far from poly"), and how far the last
+// start / end polygon search reaches horizontally
+#define FAR_FROM_POLY           7.0f
 #define SMOOTH_PATH_SLOP        0.3f
 // FindSmoothPath: iterPos moving less than this (2D, yards) counts as a stalled iteration...
 #define SMOOTH_PATH_STALL_DIST  0.01f
