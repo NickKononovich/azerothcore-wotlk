@@ -1379,19 +1379,24 @@ LiquidData const Map::GetLiquidData(uint32 phaseMask, float x, float y, float z,
             liquidData.DepthLevel = vmapData.floorZ;
             liquidData.Entry = vmapData.liquidInfo->type;
             liquidData.Flags = 1 << liquidFlagType;
+
+            // [nav166] the status only for a liquid taken (as GetFullTerrainStatusForPosition): a WMO liquid level
+            // at or under the floor (a lake plane running on under its bank) was refused above, yet its delta still
+            // set WATER_WALK / IN_WATER with Level left INVALID_HEIGHT - GetWaterOrGroundLevel then answered
+            // -100000 for a unit standing on that floor. Wailing Caverns (-141.2,63.3,-105.8): floor -105.85, the
+            // liquid plane -105.92 under it; the bots' ground check read "in the air" there
+            float delta = vmapData.liquidInfo->level - z;
+
+            // Get position delta
+            if (delta > collisionHeight)
+                liquidData.Status = LIQUID_MAP_UNDER_WATER;
+            else if (delta > 0.0f)
+                liquidData.Status = LIQUID_MAP_IN_WATER;
+            else if (delta > -0.1f)
+                liquidData.Status = LIQUID_MAP_WATER_WALK;
+            else
+                liquidData.Status = LIQUID_MAP_ABOVE_WATER;
         }
-
-        float delta = vmapData.liquidInfo->level - z;
-
-        // Get position delta
-        if (delta > collisionHeight)
-            liquidData.Status = LIQUID_MAP_UNDER_WATER;
-        else if (delta > 0.0f)
-            liquidData.Status = LIQUID_MAP_IN_WATER;
-        else if (delta > -0.1f)
-            liquidData.Status = LIQUID_MAP_WATER_WALK;
-        else
-            liquidData.Status = LIQUID_MAP_ABOVE_WATER;
     }
 
     if (useGridLiquid)
