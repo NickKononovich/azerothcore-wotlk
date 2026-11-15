@@ -21,6 +21,7 @@
 
 #include "ACSoap.h"
 #include "AppenderDB.h"
+#include "AppenderJournal.h"  // [jrn20]
 #include "AsyncAcceptor.h"
 #include "Banner.h"
 #include "BattlegroundMgr.h"
@@ -191,6 +192,12 @@ int main(int argc, char** argv)
 
     // Init all logs
     sLog->RegisterAppender<AppenderDB>();
+    // [jrn20] The one core-side line the MySQL journal needs. An appender is the only place a log line can be
+    // intercepted, and appenders are created inside sLog->Initialize() below - long before any module is loaded, and
+    // Log cannot attach one afterwards. AppenderJournal itself knows nothing about any module: it forwards to a sink
+    // installed at runtime and does nothing until one is. Delete this line and the two AppenderJournal files to
+    // remove it; a config that names no appender of type 100 never constructs one either. See AppenderJournal.h.
+    sLog->RegisterAppender<AppenderJournal>();
     // If logs are supposed to be handled async then we need to pass the IoContext into the Log singleton
     sLog->Initialize(sConfigMgr->GetOption<bool>("Log.Async.Enable", false) ? ioContext.get() : nullptr);
 
